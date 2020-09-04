@@ -1,0 +1,1931 @@
+# Manually written configuration script for yash
+# (C) 2007-2020 magicant
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+set +Ceu
+
+makefile="Makefile"
+makefilein="Makefile.in"
+configlog="config.log"
+configstatus="config.status"
+configh="config.h"
+tempsrc=".temp.c"
+tempo=".temp.o"
+tempd=".temp.d"
+tempout="./.temp.out"
+temptxt="./.temp.txt"
+dirs=". builtins doc doc/ja lineedit po tests"
+
+target="yash"
+version="2.50"
+copyright="Copyright (C) 2007-2020 magicant"
+
+# object files to be linked as `yash'
+objs='$(MAIN_OBJS)'
+# object files compiled into builtins.a
+builtin_objs=''
+
+null=""
+
+help="false"
+nocreate="false"
+debug="false"
+enable_array="true"
+enable_dirstack="true"
+enable_double_bracket="true"
+enable_nls="true"
+enable_help="true"
+enable_history="true"
+enable_lineedit="true"
+enable_printf="true"
+enable_socket="true"
+enable_test="true"
+enable_ulimit="true"
+default_loadpath='$(yashdatadir)'
+ctags_args=""
+etags_args=""
+intl_lib='intl'
+term_lib='tinfo curses ncurses ncursesw'
+prefix='/usr/local'
+exec_prefix='$(prefix)'
+bindir='$(exec_prefix)/bin'
+datarootdir='$(prefix)/share'
+datadir='$(datarootdir)'
+localedir='$(datarootdir)/locale'
+mandir='$(datarootdir)/man'
+docdir='$(datarootdir)/doc/'"$target"
+htmldir='$(docdir)'
+install_program='$(INSTALL) -c'
+install_data='$(INSTALL) -c -m 644'
+install_dir='$(INSTALL) -d'
+unset checkresult
+unset MAKEFLAGS
+umask u=rwx
+
+quoted0="'"$(printf '%s\n' "$0" | sed -e "s/'/'\\\\''/g")"'"
+quoted_args=
+for i
+do
+    if [ x"$i" != x"--no-create" ]
+    then
+	quoted_args="${quoted_args} '"$(printf '%s\n' "$i" |
+	    sed -e "s/'/'\\\\''/g")"'"
+    fi
+done
+
+parseenable() {
+    case "$1" in
+	--enable-*=yes|--enable-*=true) val=true  ;;
+	--enable-*=no|--enable-*=false) val=false ;;
+	*=*)  echo "$0: $1: invalid option" >&2;  exit 2 ;;
+	--enable-*)  val=true  ;;
+	--disable-*) val=false ;;
+    esac
+    opt="${1#--*able-}"
+    opt="${opt%%=*}"
+    case "$opt" in
+	array)          enable_array=$val ;;
+	dirstack)       enable_dirstack=$val ;;
+	double-bracket) enable_double_bracket=$val ;;
+	help)           enable_help=$val ;;
+	history)        enable_history=$val ;;
+	lineedit)       enable_lineedit=$val ;;
+	nls)            enable_nls=$val ;;
+	printf)         enable_printf=$val ;;
+	socket)         enable_socket=$val ;;
+	test)           enable_test=$val ;;
+	ulimit)         enable_ulimit=$val ;;
+	*)              echo "$0: $1: invalid option" >&2;  exit 2 ;;
+    esac
+}
+
+# parse options
+for i
+do
+    case "$i" in
+	-h|--help)
+	    help="true" ;;
+	--no-create)
+	    nocreate="true" ;;
+	-d|--debug)
+	    debug="true" ;;
+	--prefix=*)
+	    prefix="${i#--prefix=}" ;;
+	--exec-prefix=*)
+	    exec_prefix="${i#--exec-prefix=}" ;;
+	--bindir=*)
+	    bindir="${i#--bindir=}" ;;
+	--datarootdir=*)
+	    datarootdir="${i#--datarootdir=}" ;;
+	--datadir=*)
+	    datadir="${i#--datadir=}" ;;
+	--localedir=*)
+	    localedir="${i#--localedir=}" ;;
+	--mandir=*)
+	    mandir="${i#--mandir=}" ;;
+	--docdir=*)
+	    docdir="${i#--docdir=}" ;;
+	--htmldir=*)
+	    htmldir="${i#--htmldir=}" ;;
+	--enable-*|--disable-*)
+	    parseenable "$i" ;;
+	--default-loadpath=*)
+	    default_loadpath="${i#--default-loadpath=}" ;;
+	--with-intl-lib=*)
+	    intl_lib="${i#--with-intl-lib=}" ;;
+	--with-term-lib=*)
+	    term_lib="${i#--with-term-lib=}" ;;
+	?*=*)
+	    # parse variable assignment
+	    if echo "$i" | grep -E "^[[:alpha:]][[:alnum:]]*=" >/dev/null
+	    then
+		export "$i"
+	    else
+		echo "$0: $i: unknown argument" >&2
+		exit 1
+	    fi
+	    ;;
+	*)
+	    echo "$0: $i: unknown argument" >&2
+	    exit 1
+    esac
+done
+
+if ${help}
+then
+    exec cat <<END
+Usage: sh $0 [options...]
+
+Available options:
+  --no-create            do not create output files
+  --debug                configure for debug build (GCC required)
+
+Installation options:
+  --prefix=PREFIX        install architecture-independent files in PREFIX
+                         [/usr/local]
+  --exec-prefix=EPREFIX  install architecture-dependent files in EPREFIX
+                         [PREFIX]
+  --bindir=DIR           install executable in DIR [EPREFIX/bin]
+  --datarootdir=DIR      architecture-independent data root [PREFIX/share]
+  --datadir=DIR          architecture-independent data [DATAROOTDIR]
+  --localedir=DIR        localization data [DATAROOTDIR/locale]
+  --mandir=DIR           man documentation [DATAROOTDIR/man]
+  --docdir=DIR           documentation root [DATAROOTDIR/doc/$target]
+  --htmldir=DIR          html documentation [DOCDIR]
+
+Optional features:
+  --enable-FEATURE[=ARG]   enable or disable FEATURE [ARG=yes]
+  --disable-FEATURE        disable FEATURE (same as --enable-FEATURE=no)
+  --enable-array           enable the array builtin
+  --enable-dirstack        enable the directory stack (pushd, popd, dirs)
+  --enable-double-bracket  enable the double-bracket command
+  --enable-help            enable the help builtin
+  --enable-history         enable history
+  --enable-lineedit        enable command line editing
+  --enable-nls             enable native language support
+  --enable-printf          enable the echo/printf builtins
+  --enable-socket          enable socket redirection by /dev/tcp, /dev/udp
+  --enable-test            enable the test builtin
+  --enable-ulimit          enable the ulimit builtin
+  --default-loadpath=DIR   specify the default \$YASH_LOADPATH value
+
+Optional packages:
+  --with-intl-lib=LIBS    search space-separated LIBS for NLS
+  --with-term-lib=LIBS    search space-separated LIBS for terminal handling
+
+Influential environment variables:
+  CC, CFLAGS, CADDS, CPPFLAGS, CPPADDS, LDFLAGS, LDADDS, LDLIBS, AR, ARFLAGS,
+  ARCHIVER, LINGUAS, XGETTEXT, XGETTEXTFLAGS, MSGFMT, MSGFMTFLAGS, MSGMERGE,
+  MSGMERGEFLAGS, MSGINIT, MSGCONV, MSGFILTER,
+  ASCIIDOC, ASCIIDOCFLAGS, ASCIIDOCATTRS, A2X, A2XFLAGS,
+  INSTALL, INSTALL_PROGRAM, INSTALL_DATA, INSTALL_DIR,
+  CTAGS, CTAGSARGS, ETAGS, ETAGSARGS, CSCOPE, CSCOPEARGS
+END
+    exit
+fi
+
+clean_up () {
+    rm -f "${tempsrc}" "${tempo}" "${tempout}" "${temptxt}" "${tempd}"
+}
+trap 'clean_up' EXIT
+trap 'clean_up; exit 1' HUP INT QUIT ABRT TERM PIPE USR1 USR2
+trap '' ALRM
+
+exec 5>"${configlog}"
+
+{
+    printf '===== Configuration log: generated by %s\n' "${0##*/}"
+    echo
+    LC_TIME=C date
+    echo
+    printf '# Invocation command line was:\n%%'
+    for i in "$0" "$@"
+    do
+	printf ' %s' "$(printf '%s\n' "$i" |
+	    sed -e '\|[^[:alnum:]./=-]| {
+	    s/'"'"'/'"'\\''"'/g
+	    s/\(.*\)/'"'"'\1'"'"'/
+	    }')"
+    done
+    echo
+    echo
+    printf '# uname -i = %s\n' "$(uname -i 2>/dev/null || echo \?)"
+    printf '# uname -n = %s\n' "$(uname -n 2>/dev/null || echo \?)"
+    printf '# uname -m = %s\n' "$(uname -m 2>/dev/null || echo \?)"
+    printf '# uname -o = %s\n' "$(uname -o 2>/dev/null || echo \?)"
+    printf '# uname -p = %s\n' "$(uname -p 2>/dev/null || echo \?)"
+    printf '# uname -r = %s\n' "$(uname -r 2>/dev/null || echo \?)"
+    printf '# uname -s = %s\n' "$(uname -s 2>/dev/null || echo \?)"
+    printf '# uname -v = %s\n' "$(uname -v 2>/dev/null || echo \?)"
+    printf '# uname -a = %s\n' "$(uname -a 2>/dev/null || echo \?)"
+    echo
+    printf '# PATH=%s\n' "$PATH"
+    echo
+} >&5
+
+checking () {
+    printf 'checking %s... ' "$1"
+    printf '\nchecking %s...\n' "$1" >&5
+}
+checkby () {
+    printf '%% %s\n' "$*" >&5
+    "$@" >&5 2>&1
+    laststatus=$?
+    if [ ${laststatus} -eq 0 ]
+    then
+	checkresult="yes"
+    else
+	printf '# exit status: %d\n' "${laststatus}" >&5
+	checkresult="no"
+	return ${laststatus}
+    fi
+}
+trymake () {
+    checkby ${CC-${cc}} ${CFLAGS-${cflags}} ${CADDS-${null}} \
+	${CPPFLAGS-${cppflags}} ${CPPADDS-${null}} \
+	${LDFLAGS-${ldflags}} ${LDADDS-${null}} -o "${tempout}" "${tempsrc}" \
+	"$@" ${LDLIBS-${ldlibs}}
+}
+trycompile () {
+    checkby ${CC-${cc}} ${CFLAGS-${cflags}} ${CADDS-${null}} \
+	${CPPFLAGS-${cppflags}} ${CPPADDS-${null}} \
+	-c -o "${tempo}" "${tempsrc}" "$@"
+}
+trylink () {
+    checkby ${CC-${cc}} ${LDFLAGS-${ldflags}} ${LDADDS-${null}} \
+	-o "${tempout}" "${tempo}" "$@" ${LDLIBS-${ldlibs}}
+}
+tryexec () {
+    checkby "${tempout}"
+}
+checked () {
+    if [ $# -ge 1 ]
+    then
+	checkresult="$1"
+    fi
+    printf '%s\n' "${checkresult}"
+    printf '# result: %s\n' "${checkresult}" >&5
+}
+defconfigh () {
+    printf '# defining %s=%s in %s\n' "$1" "${2-1}" "${configh}" >&5
+    confighdefs="${confighdefs}
+#define ${1} ${2-1}"
+}
+fail () {
+    echo "configuration failed" >&2
+    exit 1
+}
+
+
+cc="${CC-c99}"
+cflags="${CFLAGS--O1 -g}"
+cppflags="${CPPFLAGS-${null}}"
+ldflags="${LDFLAGS-${null}}"
+ldlibs="${LDLIBS-${null}}"
+ar="${AR-ar}"
+arflags="${ARFLAGS--rc}"
+xgettext="${XGETTEXT-xgettext}"
+xgettextflags="${XGETTEXTFLAGS--kgt -kNgt -kngt:1,2 \
+--flag=sb_vprintf:1:c-format --flag=sb_printf:1:c-format \
+--flag=malloc_vprintf:1:c-format --flag=malloc_printf:1:c-format \
+--flag=xerror:1:c-format --flag=serror:1:c-format \
+--flag=le_compdebug:1:c-format}"
+msginit="${MSGINIT-msginit}"
+msgfmt="${MSGFMT-msgfmt}"
+msgfmtflags="${MSGFMTFLAGS--c}"
+msgmerge="${MSGMERGE-msgmerge}"
+msgmergeflags="${MSGMERGEFLAGS-${null}}"
+msgconv="${MSGCONV-msgconv}"
+msgfilter="${MSGFILTER-msgfilter}"
+asciidoc="${ASCIIDOC-asciidoc}"
+asciidocflags="${ASCIIDOCFLAGS-}"
+asciidocattrs="${ASCIIDOCATTRS--a docdate=\"\`date +%Y-%m-%d\`\" \
+-a yashversion=\"\$(VERSION)\" -a linkcss -a disable-javascript}"
+a2x="${A2X-a2x}"
+a2xflags="${A2XFLAGS-}"
+ctags="${CTAGS-ctags}"
+etags="${ETAGS-etags}"
+cscope="${CSCOPE-cscope}"
+
+confighdefs=''
+
+
+# check OS type
+checking 'operating system'
+ostype=$(uname -s | tr "[:upper:]" "[:lower:]")
+checked "${ostype}"
+case "${ostype}" in
+    darwin)
+	defconfigh "_DARWIN_C_SOURCE"
+	;;
+    sunos)
+	defconfigh "__EXTENSIONS__"
+	;;
+esac
+
+
+# check POSIX conformance
+checking 'POSIX conformance'
+posixver=$(getconf _POSIX_VERSION 2>/dev/null)
+if [ -n "${posixver}" ] && [ x"${posixver}" != x"undefined" ]
+then
+    checked "${posixver}"
+else
+    checked "no"
+    posixver=""
+fi
+
+checking 'SUS conformance'
+xopenver=$(getconf _XOPEN_VERSION 2>/dev/null)
+if [ -n "${xopenver}" ] && [ x"${xopenver}" != x"undefined" ]
+then
+    checked "${xopenver}"
+else
+    checked "no"
+    xopenver=""
+fi
+
+case "${ostype}" in
+    freebsd)
+	# FreeBSD doesn't have a feature test macro to enable non-POSIX
+	# extensions. We don't define _POSIX_C_SOURCE or _XOPEN_SOURCE so that
+	# non-POSIX extensions are available.
+	posix=
+	xopen=
+	;;
+    *)
+	posix=${posixver}
+	xopen=${xopenver}
+	;;
+esac
+
+
+# define options for debugging
+if ${debug}
+then
+    cc="${CC-gcc -std=c99}"
+    cflags="${CFLAGS--pedantic -MMD -Wall -Wextra -O1 -fno-inline -ggdb}"
+else
+    defconfigh "NDEBUG"
+fi
+
+
+# check if the compiler works
+checking 'whether the compiler works'
+cat >"${tempsrc}" <<END
+int main(void) { return 0; }
+END
+if
+    trymake && tryexec
+then
+    checked "yes"
+elif
+    [ x"${cc}" = x"c99" ] && [ x"${CC+set}" != x"set" ] && (
+	cc='gcc -std=c99'
+	trymake && tryexec
+    )
+then
+    checked "yes (using gcc -std=c99)"
+    cc='gcc -std=c99'
+else
+    checked "no"
+    printf 'Compiler "%s" not found or not working.\n' "${CC-${cc}}" >&2
+    printf 'The compiler is expected to accept these options: %s\n' \
+	"${CFLAGS-${cflags}} ${CADDS-${null}}" >&2
+    fail
+fi
+
+# check if the compiler accepts the -O2 option if we are not debugging
+if ! ${debug} && [ x"${CFLAGS+set}" != x"set" ]
+then
+    checking 'whether the compiler accepts -O2 flag'
+    savecflags=${cflags}
+    cflags="-O2 -g"
+    cat >"${tempsrc}" <<END
+int main(void) { return 0; }
+END
+    if
+	trycompile
+    then
+	checked "yes"
+    else
+	checked "no"
+	cflags=${savecflags}
+    fi
+    unset savecflags
+fi
+
+# check if make supports include statements
+checking 'whether make supports include statements'
+if
+    cat >"${temptxt}" <<END
+_TEST_:
+	@echo >/dev/null
+END
+    checkby eval "${MAKE-make} -f - _TEST_ <<END
+.POSIX:
+include ${temptxt}
+END
+"
+then
+    checked "yes"
+    make_supports_include=true make_include='include'
+else
+    checked "no"
+    make_supports_include=false make_include='# include'
+fi
+
+# check if make sets the $SHELL macro
+checking 'whether make sets $SHELL macro'
+checkby eval "SHELL=false ${MAKE-make} -f - <<END
+.POSIX:
+_TEST_:
+	\\\$(SHELL) -c :
+END
+"
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    make_shell='# SHELL = sh'
+else
+    make_shell='SHELL = sh'
+fi
+
+# check if the pax command is available
+if [ x"${ARCHIVER+set}" != x"set" ]
+then
+    checking 'for the pax command'
+    >|"${tempsrc}"
+    checkby pax -w -x ustar -f "${tempout}" "${tempsrc}"
+    checked
+    if [ x"${checkresult}" = x"yes" ]
+    then
+	archiver='pax -w -x ustar -f'
+    else
+	archiver='tar cf'
+    fi
+fi
+
+# check if the install command is available
+if [ x"${INSTALL+set}" != x"set" ]
+then
+    checking 'for the install command'
+    >|"${tempsrc}"
+    checkby install -c -m 644 "${tempsrc}" "${tempout}"
+    checked
+    if [ x"${checkresult}" = x"yes" ]
+    then
+	install='install'
+    else
+	install='$(topdir)/install-sh'
+    fi
+fi
+
+
+# check if defining _POSIX_C_SOURCE and _XOPEN_SOURCE as values larger than
+# _POSIX_VERSION and _XOPEN_VERSION is accepted.
+if [ -n "${posix}" ]
+then
+    checking 'what values _POSIX_C_SOURCE and _XOPEN_SOURCE should have'
+    if
+	cat >"${tempsrc}" <<END
+#define _POSIX_C_SOURCE 200809L
+#define _XOPEN_SOURCE 700
+#include <unistd.h>
+int main(void) { fork(); return 0; }
+END
+	trycompile
+    then
+	checked "_POSIX_C_SOURCE=200809L, _XOPEN_SOURCE=700"
+	posix=200809 xopen=700
+    elif
+	cat >"${tempsrc}" <<END
+#define _POSIX_C_SOURCE 200112L
+#define _XOPEN_SOURCE 600
+#include <unistd.h>
+int main(void) { fork(); return 0; }
+END
+	trycompile
+    then
+	checked "_POSIX_C_SOURCE=200112L, _XOPEN_SOURCE=600"
+	posix=200112 xopen=600
+    else
+	checked "failed"
+    fi
+fi
+if [ -n "${posix}" ]
+then
+    defconfigh "_POSIX_C_SOURCE" "${posix}L"
+fi
+if [ -n "${xopen}" ]
+then
+    defconfigh "_XOPEN_SOURCE" "${xopen}"
+fi
+
+
+# check if we need -lm
+if [ x"${LDLIBS+set}" != x"set" ]
+then
+    checking 'if loader flag -lm can be omitted'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <math.h>
+int main(int argc, char **argv) {
+    return fmod(argc, 1.1) == trunc(argc) || argv == 0;
+}
+END
+    trymake
+    checked
+    if [ x"${checkresult}" = x"no" ]
+    then
+	ldlibs="${ldlibs} -lm"
+    fi
+fi
+
+# enable/disable socket redirection
+if ${enable_socket}
+then
+    checking 'for socket library'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <netdb.h>
+#include <sys/socket.h>
+int main(void) {
+    struct addrinfo ai = {
+	.ai_flags = 0, .ai_family = AF_UNSPEC, .ai_protocol = 0,
+	.ai_socktype = 1 ? SOCK_STREAM : SOCK_DGRAM,
+	.ai_addrlen = 0, .ai_addr = (void*)0, .ai_canonname = (void*)0,
+	.ai_next = (void*)0
+    };
+    gai_strerror(getaddrinfo("", "", &ai, (void*)0));
+    connect(socket(ai.ai_family, ai.ai_socktype, ai.ai_protocol),
+	ai.ai_addr, ai.ai_addrlen);
+    freeaddrinfo(&ai);
+}
+END
+    saveldlibs="${ldlibs}"
+    if
+	trymake
+    then
+	checked "yes"
+    else
+	for lib in '-lxnet' '-lsocket' '-lnsl' '-lsocket -lnsl'
+	do
+	    ldlibs="${saveldlibs} ${lib}"
+	    if trymake
+	    then
+		checked "with ${lib}"
+		break
+	    fi
+	done
+    fi
+    case "${checkresult}" in
+    yes|with*)
+	defconfigh "YASH_ENABLE_SOCKET"
+	unset saveldlibs
+	;;
+    no)
+	checked "no"
+	printf 'The socket library is unavailable!\n' >&2
+	printf 'Add the "--disable-socket" option and try again.\n' >&2
+	fail
+	;;
+    esac
+fi
+
+# check if gettext is available
+if ${enable_nls}
+then
+    checking 'for ngettext'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <libintl.h>
+int main(void) { const char *s = ngettext("foo", "bar", 1); return s == 0; }
+END
+    trycompile
+    checked
+    if [ x"${checkresult}" = x"yes" ]
+    then
+	defconfigh "HAVE_NGETTEXT"
+    fi
+
+    checking 'for gettext library'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <libintl.h>
+int main(void) { 
+    bindtextdomain("", "");
+    textdomain("");
+    const char *s = gettext("");
+#if HAVE_NGETTEXT
+    s = ngettext("", "", 0);
+#endif
+    return s == 0;
+}
+END
+    if
+	trycompile
+    then
+	saveldlibs="${ldlibs}"
+	if trylink
+	then
+	    checked "yes"
+	else
+	    for lib in ${intl_lib}
+	    do
+		ldlibs="${saveldlibs} -l${lib}"
+		if trylink
+		then
+		    checked "with -l${lib}"
+		    break
+		fi
+	    done
+	fi
+    fi
+    case "${checkresult}" in
+    yes|with*)
+	defconfigh "HAVE_GETTEXT"
+	unset saveldlibs
+	;;
+    no)
+	checked "no"
+	printf 'The gettext library is unavailable!\n' >&2
+	printf 'Add the "--disable-nls" option and try again.\n' >&2
+	fail
+	;;
+    esac
+fi
+
+# check if terminfo is available
+if ${enable_lineedit}
+then
+    for i in curses.h:CURSES_H ncurses.h:NCURSES_H \
+	ncurses/ncurses.h:NCURSES_NCURSES_H \
+	ncursesw/ncurses.h:NCURSESW_NCURSES_H
+    do
+	checking "for ${i%:*}"
+	cat >"${tempsrc}" <<END
+${confighdefs}
+#include <${i%:*}>
+int main(void) { return ERR; }
+END
+	trycompile
+	checked
+	if [ x"${checkresult}" = x"yes" ]
+	then
+	    defconfigh "HAVE_${i#*:}"
+	    break
+	fi
+    done
+
+    for i in term.h:TERM_H ncurses/term.h:NCURSES_TERM_H \
+	ncursesw/term.h:NCURSESW_TERM_H
+    do
+	checking "for ${i%:*}"
+	cat >"${tempsrc}" <<END
+${confighdefs}
+#if HAVE_CURSES_H
+#include <curses.h>
+#elif HAVE_NCURSES_H
+#include <ncurses.h>
+#elif HAVE_NCURSES_NCURSES_H
+#include <ncurses/ncurses.h>
+#elif HAVE_NCURSESW_NCURSES_H
+#include <ncursesw/ncurses.h>
+#endif
+#include <${i%:*}>
+int main(void) {
+    int (*f1)(char *, int, int *) = setupterm; f1("", 0, 0);
+    int (*f2)(char *) = tigetflag; f2("");
+    int (*f3)(char *) = tigetnum; f3("");
+    char *(*f4)(char *) = tigetstr; f4("");
+    int (*f5)(const char *, int, int (*)(int)) = tputs; f5("", 0, 0);
+/*  char *(*f6)(char *, long,long,long,long,long,long,long,long,long) = tparm;
+    f6("", 0, 0, 0, 0, 0, 0, 0, 0, 0); */
+    int (*f7)(TERMINAL *) = del_curterm; f7(cur_term);
+}
+END
+	trycompile
+	checked
+	if [ x"${checkresult}" = x"yes" ]
+	then
+	    defconfigh "HAVE_${i#*:}"
+	    break
+	fi
+    done
+
+    checking 'for terminfo library'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <stdio.h>
+#if HAVE_CURSES_H
+#include <curses.h>
+#elif HAVE_NCURSES_H
+#include <ncurses.h>
+#elif HAVE_NCURSES_NCURSES_H
+#include <ncurses/ncurses.h>
+#elif HAVE_NCURSESW_NCURSES_H
+#include <ncursesw/ncurses.h>
+#endif
+#if HAVE_TERM_H
+#include <term.h>
+#elif HAVE_NCURSES_TERM_H
+#include <ncurses/term.h>
+#elif HAVE_NCURSESW_TERM_H
+#include <ncursesw/term.h>
+#endif
+int main(void) {
+int i1 = setupterm((char*)0, 1, (int*)0);
+int i2 = tigetflag("");
+int i3 = tigetnum("");
+char *s1 = tigetstr("");
+char *s2 = tparm(s1, (long) i1, (long) i2, (long) i3, 0L, 0L, 0L, 0L, 0L, 0L);
+int i4 = tputs(s2, 1, putchar);
+del_curterm(cur_term);
+return i4;
+}
+END
+    if
+	trycompile
+    then
+	saveldlibs="${ldlibs}"
+	if trylink
+	then
+	    checked "yes"
+	else
+	    for lib in ${term_lib}
+	    do
+		ldlibs="${saveldlibs} -l${lib}"
+		if trylink
+		then
+		    checked "with -l${lib}"
+		    break
+		fi
+	    done
+	fi
+    fi
+    case "${checkresult}" in
+    yes|with*)
+	defconfigh "YASH_ENABLE_LINEEDIT"
+	unset saveldlibs
+	;;
+    no)
+	checked "no"
+	printf 'The terminfo (curses) library is unavailable!\n' >&2
+	printf 'Add the "--disable-lineedit" option and try again.\n' >&2
+	fail
+	;;
+    esac
+fi
+
+
+# check whether system has /proc/self/exe or similar utility file
+if
+    checking 'for /proc/self/exe'
+    checkby /proc/self/exe -c true
+    checked
+    [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_PROC_SELF_EXE"
+elif
+    checking 'for /proc/curproc/file'
+    checkby /proc/curproc/file -c true
+    checked
+    [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_PROC_CURPROC_FILE"
+elif
+    checking 'for /proc/$$/object/a.out'
+    checkby eval '/proc/$$/object/a.out -c true'
+    checked
+    [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_PROC_OBJECT_AOUT"
+fi
+
+
+# check for strnlen
+checking 'for strnlen'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <string.h>
+#ifndef strnlen
+size_t strnlen(const char*, size_t);
+#endif
+int main(void) { return strnlen("12345", 3) != 3; }
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_STRNLEN"
+fi
+
+# check for strdup
+checking 'for strdup'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <string.h>
+#ifndef strdup
+char *strdup(const char*);
+#endif
+int main(void) {
+    char *dup = strdup("12345");
+    if (!dup) return 1;
+    int cmp = strcmp(dup, "12345");
+    free(dup);
+    return cmp != 0;
+}
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_STRDUP"
+fi
+
+# check for wcsnlen
+checking 'for wcsnlen'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <wchar.h>
+#ifndef wcsnlen
+size_t wcsnlen(const wchar_t*, size_t);
+#endif
+int main(void) { return wcsnlen(L"12345", 3) != 3; }
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_WCSNLEN"
+fi
+
+# check for wcsdup
+checking 'for wcsdup'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <wchar.h>
+#ifndef wcsdup
+wchar_t *wcsdup(const wchar_t*);
+#endif
+int main(void) {
+    char *dup = wcsdup("12345");
+    if (!dup) return 1;
+    int cmp = wcscmp(dup, "12345");
+    free(dup);
+    return cmp != 0;
+}
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_WCSDUP"
+fi
+
+# check for wcscasecmp
+checking 'for wcscasecmp'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <wchar.h>
+#ifndef wcscasecmp
+int wcscasecmp(const wchar_t*, const wchar_t*);
+#endif
+int main(void) { return wcscasecmp(L"1a2b3c", L"1A2B3C") != 0; }
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_WCSCASECMP"
+fi
+
+# check for wcsnrtombs
+checking 'for wcsnrtombs'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <stdint.h>
+#include <string.h>
+#include <wchar.h>
+#ifndef wcsnrtombs
+size_t wcsnrtombs(char *restrict, const wchar_t **restrict, size_t, size_t,
+    mbstate_t *restrict);
+#endif
+int main(void) {
+mbstate_t s;
+char out[10];
+const wchar_t w[] = L"abcde";
+const wchar_t *in = w;
+memset(&s, 0, sizeof s);
+return wcsnrtombs(out, &in, SIZE_MAX, sizeof out, &s) != 5 ||
+    in != NULL ||
+    strcmp(out, "abcde") != 0 ||
+    wcsnrtombs(out, (in = &w[1], &in), 3, sizeof out, &s) != 3 ||
+    in != &w[4] ||
+    strncmp(out, "bcd", 3) != 0;
+}
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_WCSNRTOMBS"
+fi
+
+# check for wcstold
+checking 'for wcstold'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <wchar.h>
+#ifndef wcstold
+long double wcstold(const wchar_t *restrict, wchar_t **restrict);
+#endif
+int main(void) { return wcstold(L"10.0", (wchar_t **) 0) != 10.0; }
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_WCSTOLD"
+fi
+
+# check for wcwidth
+checking 'for wcwidth'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <wchar.h>
+#ifndef wcwidth
+int wcwidth(wchar_t);
+#endif
+int main(void) { return wcwidth(L'\0'); }
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_WCWIDTH"
+fi
+
+# check if sys/stat.h defines S_ISVTX
+checking 'if <sys/stat.h> defines S_ISVTX'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <sys/stat.h>
+int main(void) { return S_ISVTX & 0; }
+END
+trymake
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_S_ISVTX"
+fi
+
+# check if unsetenv returns int
+checking 'if unsetenv returns int'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <stdlib.h>
+int main(void) { return 0 != unsetenv("x"); }
+END
+trymake
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "UNSETENV_RETURNS_INT"
+fi
+
+# check if the "st_atim"/"st_atimespec"/"st_atimensec"/"__st_atimensec" member
+# of the "stat" structure is available
+if ${enable_test}
+then
+    if
+	checking 'for st_atim'
+	cat >"${tempsrc}" <<END
+	${confighdefs}
+#include <sys/stat.h>
+int main(void) {
+struct stat st;
+st.st_atim = (struct timespec) { .tv_sec = 0, .tv_nsec = 0 };
+struct timespec ts = st.st_atim;
+return ts.tv_nsec != 0;
+}
+END
+	trymake
+	checked
+	[ x"${checkresult}" = x"yes" ]
+    then
+	defconfigh "HAVE_ST_ATIM"
+    elif
+	checking 'for st_atimespec'
+	cat >"${tempsrc}" <<END
+${confighdefs}
+#include <sys/stat.h>
+int main(void) {
+struct stat st;
+st.st_atimespec = (struct timespec) { .tv_sec = 0, .tv_nsec = 0 };
+struct timespec ts = st.st_atimespec;
+return ts.tv_nsec != 0;
+}
+END
+	trymake
+	checked
+	[ x"${checkresult}" = x"yes" ]
+    then
+	defconfigh "HAVE_ST_ATIMESPEC"
+    elif
+	checking 'for st_atimensec'
+	cat >"${tempsrc}" <<END
+${confighdefs}
+#include <sys/stat.h>
+int main(void) {
+struct stat st;
+st.st_atimensec = 0;
+return st.st_atimensec != 0;
+}
+END
+	trymake
+	checked
+	[ x"${checkresult}" = x"yes" ]
+    then
+	defconfigh "HAVE_ST_ATIMENSEC"
+    elif
+	checking 'for __st_atimensec'
+	cat >"${tempsrc}" <<END
+${confighdefs}
+#include <sys/stat.h>
+int main(void) {
+struct stat st;
+st.__st_atimensec = 0;
+return st.__st_atimensec != 0;
+}
+END
+	trymake
+	checked
+	[ x"${checkresult}" = x"yes" ]
+    then
+	defconfigh "HAVE___ST_ATIMENSEC"
+    fi
+fi
+
+# check if the "st_mtim"/"st_mtimespec"/"st_mtimensec"/"__st_mtimensec" member
+# of the "stat" structure is available
+if
+    checking 'for st_mtim'
+    cat >"${tempsrc}" <<END
+    ${confighdefs}
+#include <sys/stat.h>
+int main(void) {
+struct stat st;
+st.st_mtim = (struct timespec) { .tv_sec = 0, .tv_nsec = 0 };
+struct timespec ts = st.st_mtim;
+return ts.tv_nsec != 0;
+}
+END
+    trymake
+    checked
+    [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_ST_MTIM"
+elif
+    checking 'for st_mtimespec'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <sys/stat.h>
+int main(void) {
+struct stat st;
+st.st_mtimespec = (struct timespec) { .tv_sec = 0, .tv_nsec = 0 };
+struct timespec ts = st.st_mtimespec;
+return ts.tv_nsec != 0;
+}
+END
+    trymake
+    checked
+    [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_ST_MTIMESPEC"
+elif
+    checking 'for st_mtimensec'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <sys/stat.h>
+int main(void) {
+struct stat st;
+st.st_mtimensec = 0;
+return st.st_mtimensec != 0;
+}
+END
+    trymake
+    checked
+    [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_ST_MTIMENSEC"
+elif
+    checking 'for __st_mtimensec'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <sys/stat.h>
+int main(void) {
+struct stat st;
+st.__st_mtimensec = 0;
+return st.__st_mtimensec != 0;
+}
+END
+    trymake
+    checked
+    [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE___ST_MTIMENSEC"
+fi
+
+# check if WCONTINUED and WIFCONTINUED are available
+checking 'for WCONTINUED and WIFCONTINUED'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <errno.h>
+#include <sys/wait.h>
+static int s;
+int main(void) {
+if (WIFCONTINUED(s)) { }
+return waitpid(-1, &s, WNOHANG|WCONTINUED) < 0 && errno == EINVAL;
+}
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_WCONTINUED"
+fi
+
+# check for faccessat/eaccess
+if
+    checking 'for faccessat'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <fcntl.h>
+#include <unistd.h>
+#ifndef faccessat
+extern int faccessat(int, const char *, int, int);
+#endif
+int main(void) {
+faccessat(AT_FDCWD, ".", F_OK | R_OK | W_OK | X_OK, AT_EACCESS);
+}
+END
+    trymake
+    checked
+    [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_FACCESSAT"
+elif
+    checking 'for eaccess'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <unistd.h>
+#ifndef eaccess
+extern int eaccess(const char *, int);
+#endif
+int main(void) { eaccess(".", F_OK | R_OK | W_OK | X_OK); }
+END
+    trymake
+    checked
+    [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_EACCESS"
+fi
+
+# check for strsignal
+checking 'for strsingal'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <signal.h>
+#include <string.h>
+#ifndef strsignal
+char *strsignal(int);
+#endif
+int main(void) { (void) strsignal(SIGKILL); }
+END
+trymake
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_STRSIGNAL"
+fi
+
+# check for setpwent & getpwent & endpwent
+checking 'for setpwent/getpwent/endpwent'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <pwd.h>
+#ifndef setpwent
+void setpwent(void);
+#endif
+#ifndef getpwent
+struct passwd *getpwent(void);
+#endif
+#ifndef endpwent
+void endpwent(void);
+#endif
+struct passwd *p;
+int main(void) { setpwent(); p = getpwent(); endpwent(); }
+END
+trymake
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_GETPWENT"
+
+    # check for pw_gecos
+    checking 'for pw_gecos'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <pwd.h>
+const char *s;
+struct passwd pwd;
+int main(void) { pwd.pw_gecos = ""; s = pwd.pw_gecos; }
+END
+    trycompile
+    checked
+    if [ x"${checkresult}" = x"yes" ]
+    then
+	defconfigh "HAVE_PW_GECOS"
+    fi
+fi
+
+# check for setgrent & getgrent & endgrent
+checking 'for setgrent/getgrent/endgrent'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <grp.h>
+/* don't declare setgrent to avoid conflict on BSD */
+#ifndef getgrent
+struct group *getgrent(void);
+#endif
+#ifndef endgrent
+void endgrent(void);
+#endif
+struct group *g;
+int main(void) { setgrent(); g = getgrent(); endgrent(); }
+END
+trymake
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_GETGRENT"
+fi
+
+# check for sethostent & gethostent & endhostent
+#   This check may fail if socket redirection is disabled
+#   because the -lxnet compiler option is not specified.
+checking 'for sethostent/gethostent/endhostent'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <netdb.h>
+/* don't declare sethostent and endhostent to avoid conflict on SunOS */
+#ifndef gethostent
+struct hostent *gethostent(void);
+#endif
+struct hostent *h;
+int main(void) { sethostent(1); h = gethostent(); endhostent(); }
+END
+trymake
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_GETHOSTENT"
+fi
+
+# check for paths.h
+checking 'for paths.h'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <paths.h>
+#include <stdio.h>
+int main(void) { printf("%s\n", _PATH_BSHELL); }
+END
+trycompile
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "HAVE_PATHS_H"
+fi
+
+# check if getcwd accepts (NULL,0) as argument
+checking "if getcwd(NULL,0) returns malloc'ed string"
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+char *xgetcwd(void) {
+    size_t pwdlen = 80;
+    char *pwd = malloc(pwdlen);
+    if (!pwd) return NULL;
+    while (getcwd(pwd, pwdlen) == NULL) {
+	if (errno == ERANGE) {
+	    pwdlen *= 2;
+	    pwd = realloc(pwd, pwdlen);
+	    if (!pwd) return NULL;
+	} else {
+	    free(pwd);
+	    return NULL;
+	}
+    }
+    return pwd;
+}
+int main(void) {
+    char *wd1 = getcwd(NULL, 0);
+    if (!wd1) return 1;
+    char *wd2 = xgetcwd();
+    if (!wd2 || strcmp(wd1, wd2) != 0) return 1;
+    char *wd11 = realloc(wd1, strlen(wd1) + 10);
+    if (!wd11 || strcmp(wd11, wd2) != 0) return 1;
+    free(wd11); free(wd2); return 0;
+}
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"yes" ]
+then
+    defconfigh "GETCWD_AUTO_MALLOC"
+fi
+
+# check if ioctl supports TIOCGWINSZ
+if ${enable_lineedit}
+then
+    checking 'if ioctl supports TIOCGWINSZ'
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <sys/ioctl.h>
+int main(void) {
+    struct winsize ws;
+    ioctl(0, TIOCGWINSZ, &ws);
+    (void) ws.ws_row, (void) ws.ws_col;
+}
+END
+    trymake
+    checked
+    if [ x"${checkresult}" = x"yes" ]
+    then
+	defconfigh "HAVE_TIOCGWINSZ"
+    fi
+fi
+
+# check if wide-oriented I/O is working
+checking 'if wide-oriented I/O is fully working'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <stdio.h>
+#include <wchar.h>
+#define LEN 12345
+int main(void)
+{
+    FILE *f;
+    fpos_t pos;
+    f = fopen("${tempsrc}", "w+");
+    if (f == NULL)                  return 1;
+    if (fwprintf(f, L"123\n") != 4) return 2;
+    if (fseek(f, 0, SEEK_SET) != 0) return 3;
+    if (fgetwc(f) != L'1')          return 4;
+    if (fgetwc(f) != L'2')          return 5;
+    if (fgetpos(f, &pos) != 0)      return 6;
+    if (fseek(f, 0, SEEK_SET) != 0) return 7;
+    if (fgetwc(f) != L'1')          return 8;
+    if (fsetpos(f, &pos) != 0)      return 9;
+    if (fgetwc(f) != L'3')          return 10;
+    if (fseek(f, 0, SEEK_SET) != 0) return 11;
+    for (size_t i = 0; i < LEN; i++)
+	if (fputwc(L'0', f) != L'0') return 12;
+    if (fgetpos(f, &pos) != 0)      return 13;
+    if (fputwc(L'1', f) != L'1')    return 14;
+    if (fseek(f, 0, SEEK_SET) != 0) return 15;
+    if (fgetwc(f) != L'0')          return 16;
+    if (fsetpos(f, &pos) != 0)      return 17;
+    if (fgetwc(f) != L'1')          return 18;
+    if (fseek(f, 0, SEEK_SET) != 0) return 19;
+    for (size_t i = 0; i < LEN; i++)
+	if (fgetwc(f) != L'0')       return 20;
+    if (fgetwc(f) != L'1')          return 21;
+    if (fclose(f) != 0)             return 22;
+    return 0;
+}
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"no" ]
+then
+    defconfigh "WIO_BROKEN"
+fi
+
+# check if fgetws is working
+checking 'if fgetws is fully working'
+cat >"${tempsrc}" <<END
+${confighdefs}
+#include <stdio.h>
+#include <wchar.h>
+int main(void)
+{
+    wchar_t buf[100];
+    FILE *f = fopen("${tempsrc}", "w+");
+    if (f == NULL)                  return 1;
+    if (fwprintf(f, L"123\n") != 4) return 2;
+    if (fseek(f, 0, SEEK_SET) != 0) return 3;
+    if (fgetws(buf, 2, f) == NULL)  return 4;
+    if (wcscmp(buf, L"1") != 0)     return 5;
+    if (fclose(f) != 0)             return 6;
+    return 0;
+}
+END
+trymake && tryexec
+checked
+if [ x"${checkresult}" = x"no" ]
+then
+    defconfigh "FGETWS_BROKEN"
+fi
+
+echo >&5
+
+# enable/disable the array builtin
+if ${enable_array}
+then
+    defconfigh "YASH_ENABLE_ARRAY"
+fi
+
+# enable/disable the double-bracket command
+if ${enable_double_bracket}
+then
+    defconfigh "YASH_ENABLE_DOUBLE_BRACKET"
+fi
+
+# enable/disable the directory stack
+if ${enable_dirstack}
+then
+    defconfigh "YASH_ENABLE_DIRSTACK"
+fi
+
+# enable/disable the help builtin
+if ${enable_help}
+then
+    defconfigh "YASH_ENABLE_HELP"
+fi
+
+# enable/disable history
+if ${enable_history}
+then
+    defconfigh "YASH_ENABLE_HISTORY"
+    objs="$objs "'$(HISTORY_OBJS)'
+else
+    if ${enable_lineedit}
+    then
+	printf 'History is required for lineedit but disabled.\n' >&2
+	printf 'Add the "--disable-lineedit" option and try again.\n' >&2
+	fail
+    fi
+fi
+
+# enable/disable the echo/printf builtins
+if ${enable_printf}
+then
+    defconfigh "YASH_ENABLE_PRINTF"
+    builtin_objs="$builtin_objs "'$(PRINTF_OBJS)'
+fi
+
+# enable/disable the test builtin
+if ${enable_test}
+then
+    defconfigh "YASH_ENABLE_TEST"
+    builtin_objs="$builtin_objs "'$(TEST_OBJS)'
+else
+    if ${enable_double_bracket}
+    then
+	cat >&2 <<END
+The test built-in is required for the double-bracket command, but disabled.
+Add the "--disable-double-bracket" option and try again.
+END
+	fail
+    fi
+fi
+
+# check for getrlimit and setrlimit
+if ${enable_ulimit}
+then
+    checking "for getrlimit and setrlimit"
+    cat >"${tempsrc}" <<END
+${confighdefs}
+#include <stdint.h> /* required before <sys/resource.h> on freebsd */
+#include <sys/time.h> /* required before <sys/resource.h> on old Mac OS X */
+#include <sys/resource.h>
+int main(void) {
+struct rlimit l = { .rlim_cur = RLIM_INFINITY, .rlim_max = RLIM_INFINITY };
+getrlimit(RLIMIT_FSIZE, &l);
+setrlimit(RLIMIT_FSIZE, &l);
+}
+END
+    trymake
+    checked
+    if [ x"${checkresult}" = x"yes" ]
+    then
+	defconfigh "YASH_ENABLE_ULIMIT"
+	builtin_objs="$builtin_objs "'$(ULIMIT_OBJS)'
+    else
+	printf 'The getrlimit and setrlimit functions are unavailable.\n' >&2
+	printf 'Add the "--disable-ulimit" option and try again.\n' >&2
+	fail
+    fi
+
+    # check for RLIM_SAVED_CUR & RLIM_SAVED_MAX
+    for i in CUR MAX
+    do
+	checking "for RLIM_SAVED_${i}"
+	cat >"${tempsrc}" <<END
+${confighdefs}
+#include <stdint.h> /* required before <sys/resource.h> on freebsd */
+#include <sys/time.h> /* required before <sys/resource.h> on old Mac OS X */
+#include <sys/resource.h>
+int main(void) {
+struct rlimit l = { .rlim_cur = RLIM_SAVED_${i}, .rlim_max = RLIM_SAVED_${i} };
+return l.rlim_cur == l.rlim_max;
+}
+END
+	trymake
+	checked
+	if [ x"${checkresult}" = x"yes" ]
+	then
+	    defconfigh "HAVE_RLIM_SAVED_${i}"
+	fi
+    done
+
+    # check for RLIMIT_***
+    for i in AS LOCKS MEMLOCK MSGQUEUE NICE NPROC RSS RTPRIO SIGPENDING
+    do
+	checking "for RLIMIT_${i}"
+	cat >"${tempsrc}" <<END
+${confighdefs}
+#include <stdint.h> /* required before <sys/resource.h> on freebsd */
+#include <sys/time.h> /* required before <sys/resource.h> on old Mac OS X */
+#include <sys/resource.h>
+#if HAVE_RLIMIT_AS
+int main(void) { return RLIMIT_${i} == RLIMIT_AS; getrlimit(RLIMIT_${i}, 0); }
+#else
+int main(void) { return 0; getrlimit(RLIMIT_${i}, 0); }
+#endif
+END
+	trymake && tryexec
+	checked
+	if [ x"${checkresult}" = x"yes" ]
+	then
+	    defconfigh "HAVE_RLIMIT_${i}"
+	fi
+    done
+fi
+
+
+# check if ctags/etags accepts the --recurse option
+if [ x"${CTAGSARGS+set}" != x"set" ]
+then
+    checking "if ctags accepts --recurse option"
+    rm -fr "${temptxt}"
+    printf 'int f(int){}\n' >|"${tempsrc}"
+    checkby ${ctags} --recurse -f "${temptxt}" "${tempsrc}"
+    checked
+    if [ x"${checkresult}" = x"yes" ]
+    then
+	CTAGSARGS='--recurse'
+    else
+	CTAGSARGS='*.[ch]'
+    fi
+fi
+if [ x"${ETAGSARGS+set}" != x"set" ]
+then
+    checking "if etags accepts --recurse option"
+    rm -fr "${temptxt}"
+    printf 'int f(int){}\n' >|"${tempsrc}"
+    checkby ${etags} --recurse -o "${temptxt}" "${tempsrc}"
+    checked
+    if [ x"${checkresult}" = x"yes" ]
+    then
+	ETAGSARGS='--recurse'
+    else
+	ETAGSARGS='*.[ch]'
+    fi
+fi
+
+# set cscope invocation parameter
+: ${CSCOPEARGS=-bR}
+
+
+if [ -n "${builtin_objs}" ]
+then
+    objs="${objs} "'$(BUILTINS_ARCHIVE)'
+fi
+if ${enable_lineedit}
+then
+    objs="${objs} "'$(LINEEDIT_ARCHIVE)'
+fi
+
+if [ x"${LINGUAS+set}" = x"set" ]
+then
+    CATALOGS=''
+    for i in ${LINGUAS}
+    do
+	CATALOGS="${CATALOGS} ${i}.mo"
+    done
+else
+    CATALOGS='$(MOFILES)'
+fi
+
+MAKE_INCLUDE="${MAKE_INCLUDE-${make_include}}"
+MAKE_SHELL="${MAKE_SHELL-${make_shell}}"
+CC="${CC-${cc}}"
+CFLAGS="${CFLAGS-${cflags}}${CADDS:+ ${CADDS}}"
+CPPFLAGS="${CPPFLAGS-${cppflags}}${CPPADDS:+ ${CPPADDS}}"
+LDFLAGS="${LDFLAGS-${ldflags}}${LDADDS:+ ${LDADDS}}"
+LDLIBS="${LDLIBS-${ldlibs}}"
+AR="${AR-${ar}}"
+ARFLAGS="${ARFLAGS-${arflags}}"
+ARCHIVER="${ARCHIVER-${archiver}}"
+XGETTEXT="${XGETTEXT-${xgettext}}"
+XGETTEXTFLAGS="${XGETTEXTFLAGS-${xgettextflags}}"
+MSGINIT="${MSGINIT-${msginit}}"
+MSGFMT="${MSGFMT-${msgfmt}}"
+MSGFMTFLAGS="${MSGFMTFLAGS-${msgfmtflags}}"
+MSGMERGE="${MSGMERGE-${msgmerge}}"
+MSGMERGEFLAGS="${MSGMERGEFLAGS-${msgmergeflags}}"
+MSGCONV="${MSGCONV-${msgconv}}"
+MSGFILTER="${MSGFILTER-${msgfilter}}"
+ASCIIDOC="${ASCIIDOC-${asciidoc}}"
+ASCIIDOCFLAGS="${ASCIIDOCFLAGS-${asciidocflags}}"
+ASCIIDOCATTRS="${ASCIIDOCATTRS-${asciidocattrs}}"
+A2X="${A2X-${a2x}}"
+A2XFLAGS="${A2XFLAGS-${a2xflags}}"
+CTAGS="${CTAGS-${ctags}}"
+ETAGS="${ETAGS-${etags}}"
+CSCOPE="${CSCOPE-${cscope}}"
+DIRS="${dirs}"
+OBJS="${objs}"
+BUILTIN_OBJS="${builtin_objs}"
+TARGET="${target}"
+VERSION="${version}"
+COPYRIGHT="${copyright}"
+INSTALL="${INSTALL-${install}}"
+INSTALL_PROGRAM="${INSTALL_PROGRAM-${install_program}}"
+INSTALL_DATA="${INSTALL_DATA-${install_data}}"
+INSTALL_DIR="${INSTALL_DIR-${install_dir}}"
+case "${prefix}" in
+    / ) prefix=  ;;
+    //) prefix=/ ;;
+esac
+case "${exec_prefix}" in
+    / ) exec_prefix=  ;;
+    //) exec_prefix=/ ;;
+esac
+case "${bindir}" in
+    / ) bindir=  ;;
+    //) bindir=/ ;;
+esac
+case "${datarootdir}" in
+    / ) datarootdir=  ;;
+    //) datarootdir=/ ;;
+esac
+case "${datadir}" in
+    / ) datadir=  ;;
+    //) datadir=/ ;;
+esac
+case "${localedir}" in
+    / ) localedir=  ;;
+    //) localedir=/ ;;
+esac
+case "${mandir}" in
+    / ) mandir=  ;;
+    //) mandir=/ ;;
+esac
+case "${docdir}" in
+    / ) docdir=  ;;
+    //) docdir=/ ;;
+esac
+case "${htmldir}" in
+    / ) htmldir=  ;;
+    //) htmldir=/ ;;
+esac
+
+sed_subst_cmd="
+s!@MAKE_INCLUDE@!${MAKE_INCLUDE}!g
+s!@MAKE_SHELL@!${MAKE_SHELL}!g
+s!@CC@!${CC}!g
+s!@CFLAGS@!${CFLAGS}!g
+s!@CPPFLAGS@!${CPPFLAGS}!g
+s!@LDFLAGS@!${LDFLAGS}!g
+s!@LDLIBS@!${LDLIBS}!g
+s!@AR@!${AR}!g
+s!@ARFLAGS@!${ARFLAGS}!g
+s!@ARCHIVER@!${ARCHIVER}!g
+s!@XGETTEXT@!${XGETTEXT}!g
+s!@XGETTEXTFLAGS@!${XGETTEXTFLAGS}!g
+s!@MSGINIT@!${MSGINIT}!g
+s!@MSGFMT@!${MSGFMT}!g
+s!@MSGFMTFLAGS@!${MSGFMTFLAGS}!g
+s!@MSGMERGE@!${MSGMERGE}!g
+s!@MSGMERGEFLAGS@!${MSGMERGEFLAGS}!g
+s!@MSGCONV@!${MSGCONV}!g
+s!@MSGFILTER@!${MSGFILTER}!g
+s!@ASCIIDOC@!${ASCIIDOC}!g
+s!@ASCIIDOCFLAGS@!${ASCIIDOCFLAGS}!g
+s!@ASCIIDOCATTRS@!${ASCIIDOCATTRS}!g
+s!@A2X@!${A2X}!g
+s!@A2XFLAGS@!${A2XFLAGS}!g
+s!@CATALOGS@!${CATALOGS}!g
+s!@CTAGS@!${CTAGS}!g
+s!@CTAGSARGS@!${CTAGSARGS}!g
+s!@ETAGS@!${ETAGS}!g
+s!@ETAGSARGS@!${ETAGSARGS}!g
+s!@CSCOPE@!${CSCOPE}!g
+s!@CSCOPEARGS@!${CSCOPEARGS}!g
+s!@DIRS@!${DIRS}!g
+s!@OBJS@!${OBJS}!g
+s!@BUILTIN_OBJS@!${BUILTIN_OBJS}!g
+s!@TARGET@!${TARGET}!g
+s!@VERSION@!${VERSION}!g
+s!@COPYRIGHT@!${COPYRIGHT}!g
+s!@INSTALL@!${INSTALL}!g
+s!@INSTALL_PROGRAM@!${INSTALL_PROGRAM}!g
+s!@INSTALL_DATA@!${INSTALL_DATA}!g
+s!@INSTALL_DIR@!${INSTALL_DIR}!g
+s!@prefix@!${prefix}!g
+s!@exec_prefix@!${exec_prefix}!g
+s!@bindir@!${bindir}!g
+s!@datarootdir@!${datarootdir}!g
+s!@datadir@!${datadir}!g
+s!@localedir@!${localedir}!g
+s!@mandir@!${mandir}!g
+s!@docdir@!${docdir}!g
+s!@htmldir@!${htmldir}!g
+s!@default_loadpath@!${default_loadpath}!g
+s!@enable_nls@!${enable_nls}!g
+"
+printf '\n\n===== Output variables =====\n%s\n' "${sed_subst_cmd}" >&5
+
+
+# create dependency files if there are none
+makedep() {
+    for i in ${1}*.c
+    do
+	if [ -f "${i}" ] && [ ! -f "${i%.c}.d" ]
+	then
+	    printf 'touching %s\n' "${i%.c}.d"
+	    >>"${i%.c}.d"
+	    printf 'Touched %s\n' "${i%.c}.d" >&5
+	fi
+    done
+    for i in ${1}*/
+    do
+	if [ -d "${i}" ]
+	then
+	    makedep "${i}"
+	fi
+    done
+}
+makedep ''
+
+# create config.status
+printf 'creating %s... ' "${configstatus}"
+cat >"${configstatus}" <<CONFIG_STATUS_END
+# ${configstatus##*/}: generated by ${0##*/}
+# $(LC_TIME=C date)
+
+help=false
+recheck=false
+dirs='${dirs}'
+
+targets='${configh}'
+for i in \${dirs}
+do
+    targets="\${targets} \${i}/${makefile}"
+done
+
+# parse options
+while [ \$# -gt 0 ]
+do
+    case "\$1" in
+	-h|--help)
+	    help=true ;;
+	--recheck)
+	    recheck=true ;;
+	--)
+	    shift
+	    break ;;
+	-*)
+	    echo "\$0: \$i: unknown option" >&2
+	    exit 1 ;;
+	*)
+	    break ;;
+    esac
+    shift
+done
+
+if \$help
+then
+    exec cat <<END
+This shell script instantiates files from templates according to the
+configuration result
+
+Usage: sh \$0 [options...] [files...]
+
+Available options:
+  --recheck      update config.status by reconfiguring in the same conditions
+
+Configuration files:
+\${targets}
+END
+    exit
+fi
+
+if \$recheck
+then
+    exec \${CONFIG_SHELL-sh} ${quoted0}${quoted_args} --no-create
+    exit
+fi
+
+if [ \$# -eq 0 ]
+then
+    set \${targets}
+fi
+
+for target
+do
+    printf 'creating %s... ' "\${target}"
+    case \${target} in
+	'${configh}')
+	    cat >'${configh}' <<END
+/* ${configh##*/}: generated by \${0##*/} */
+#ifndef YASH_CONFIG_H
+#define YASH_CONFIG_H
+${confighdefs}
+#endif
+END
+	    ;;
+	'${makefile}' | */'${makefile}')
+	    dir=\$(dirname "\${target}")
+	    sed -e '${sed_subst_cmd}' -e "1i\\\\
+# \${target##*/}: generated by \${0##*/}" "\${dir}/${makefilein}" >"\${target}"
+	    if ! ${make_supports_include} &&
+		ls "\${dir}"/*.d >/dev/null 2>&1
+	    then
+		printf '(including dependencies) '
+		cat "\${dir}"/*.d >>"\${target}"
+	    fi
+	    ;;
+    esac
+    printf 'done\n'
+done
+CONFIG_STATUS_END
+chmod a+x "${configstatus}"
+printf 'done\n'
+printf 'Created %s\n' "${configstatus}" >&5
+if ! ${nocreate}
+then
+    printf '%% %s\n' "${CONFIG_SHELL-sh} ${configstatus}" >&5
+    ${CONFIG_SHELL-sh} ${configstatus}
+fi
+
+
+# print warning if POSIX conformance is missing
+if [ -z "${posixver}" ] || [ "${posixver}" -lt 200112 ]
+then
+    echo "WARNING: yash is designed for systems that conform to POSIX.1-2001"
+    echo "         but your system does not"
+fi
+
+
+# vim: set ft=sh ts=8 sts=4 sw=4 noet tw=80:

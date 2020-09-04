@@ -1,0 +1,38 @@
+= Help built-in
+:encoding: UTF-8
+:lang: en
+//:title: Yash manual - Help built-in
+
+The dfn:[help built-in] prints usage of built-ins.
+
+[[syntax]]
+== Syntax
+
+- +help [{{built-in}}...]+
+
+[[description]]
+== Description
+
+The help built-in prints a description of {{built-in}}s.
+
+[[operands]]
+== Operands
+
+{{built-in}}s::
+Names of link:builtin.html[built-ins].
+
+[[exitstatus]]
+== Exit status
+
+The exit status of the help built-in is zero unless there is any error.
+
+[[notes]]
+== Notes
+
+The help built-in is a link:builtin.html#types[semi-special built-in]. In the
+POSIX standard, it is defined as a command with unspecified behavior.
+
+Many built-ins of yash accept the +--help+ option that prints the same
+description.
+
+// vim: set filetype=asciidoc textwidth=78 expandtab:

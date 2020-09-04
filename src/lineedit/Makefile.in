@@ -1,0 +1,102 @@
+# Makefile.in for yash: yet another shell
+# (C) 2007-2012 magicant
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+.POSIX:
+.SUFFIXES: .c .h .d .o .a
+
+@MAKE_SHELL@
+topdir = ..
+subdir = lineedit
+
+CC = @CC@
+CFLAGS = @CFLAGS@
+CPPFLAGS = @CPPFLAGS@
+LDFLAGS = @LDFLAGS@
+LDLIBS = @LDLIBS@
+AR = @AR@
+ARFLAGS = @ARFLAGS@
+SOURCES = complete.c compparse.c display.c editing.c keymap.c lineedit.c terminfo.c trie.c
+HEADERS = complete.h compparse.h display.h editing.h key.h keymap.h lineedit.h terminfo.h trie.h
+OBJS = complete.o compparse.o display.o editing.o keymap.o lineedit.o terminfo.o trie.o
+TARGET = lineedit.a
+YASH = @TARGET@
+BYPRODUCTS = commands.in *.dSYM
+
+all: $(TARGET)
+
+.c.o:
+	@rm -f $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
+
+$(TARGET): $(OBJS)
+	$(AR) $(ARFLAGS) $@ $(OBJS)
+keymap.o: commands.in
+commands.in: editing.h
+	-@echo creating $@...
+	@grep 'cmd_.*/\*C\*/$$' $? | \
+	LC_ALL=C sed -e 's/\(cmd_[0-9a-zA-Z_]*\).*/\1/' -e 's/.*cmd_//' \
+		-e 'h' -e 's/_/-/g' -e 'G' -e 's/\n/ /' | \
+	LC_ALL=C sort -k 1 | \
+	sed -e 's/ /", cmd_/' -e 's/^/{ "/' -e 's/$$/, },/' > $@
+
+DISTFILES = $(SOURCES) $(SOURCES:.c=.d) $(HEADERS) Makefile.in
+distfiles: makedeps $(DISTFILES)
+copy-distfiles: distfiles
+	mkdir -p $(topdir)/$(DISTTARGETDIR)
+	cp $(DISTFILES) $(topdir)/$(DISTTARGETDIR)
+makedeps: _PHONY
+	@(cd $(topdir) && $(MAKE) $(YASH))
+	$(topdir)/$(YASH) $(topdir)/makedeps.yash $(SOURCES)
+
+# ctags conforms to POSIX, but etags and cscope do not.
+CTAGS = @CTAGS@
+CTAGSARGS = @CTAGSARGS@
+ETAGS = @ETAGS@
+ETAGSARGS = @ETAGSARGS@
+CSCOPE = @CSCOPE@
+CSCOPEARGS = @CSCOPEARGS@
+tags: $(SOURCES) $(HEADERS)
+	$(CTAGS) $(CTAGSARGS)
+TAGS: $(SOURCES) $(HEADERS)
+	$(ETAGS) $(ETAGSARGS)
+cscope: cscope.out
+cscope.out: $(SOURCES) $(HEADERS)
+	$(CSCOPE) $(CSCOPEARGS)
+
+mostlyclean:
+	-rm -rf $(OBJS) $(BYPRODUCTS)
+clean: mostlyclean
+	-rm -rf $(TARGET)
+distclean: clean
+	-rm -rf Makefile tags TAGS cscope.out
+maintainer-clean: distclean
+	-rm -rf $(SOURCES:.c=.d)
+
+Makefile: Makefile.in $(topdir)/config.status
+	@+(cd $(topdir) && $(MAKE) config.status)
+	@(cd $(topdir) && $(SHELL) config.status $(subdir)/$@)
+
+.PHONY: all distfiles copy-distfiles makedeps cscope mostlyclean clean distclean maintainer-clean
+_PHONY:
+
+@MAKE_INCLUDE@ complete.d
+@MAKE_INCLUDE@ compparse.d
+@MAKE_INCLUDE@ display.d
+@MAKE_INCLUDE@ editing.d
+@MAKE_INCLUDE@ keymap.d
+@MAKE_INCLUDE@ lineedit.d
+@MAKE_INCLUDE@ terminfo.d
+@MAKE_INCLUDE@ trie.d

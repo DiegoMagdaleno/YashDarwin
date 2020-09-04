@@ -1,0 +1,328 @@
+# Makefile.in for yash: yet another shell
+# (C) 2007-2015 magicant
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 2 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+# NOTE: In this Makefile it is assumed that the make implementation allows the
+# use of hyphens in target names. This means that there may be a strictly
+# POSIX-conforming implementation of make that rejects this Makefile. I have
+# never seen such an implementation but if you know of one please let me know.
+
+.POSIX:
+.SUFFIXES: .c .h .d .o .a
+
+@MAKE_SHELL@
+topdir = .
+
+CC = @CC@
+CFLAGS = @CFLAGS@
+CPPFLAGS = @CPPFLAGS@
+LDFLAGS = @LDFLAGS@
+LDLIBS = @LDLIBS@
+INSTALL = @INSTALL@
+INSTALL_PROGRAM = @INSTALL_PROGRAM@
+INSTALL_DATA = @INSTALL_DATA@
+INSTALL_DIR = @INSTALL_DIR@
+ARCHIVER = @ARCHIVER@
+DIRS = @DIRS@
+SOURCES = alias.c arith.c builtin.c exec.c expand.c hashtable.c history.c input.c job.c mail.c makesignum.c option.c parser.c path.c plist.c redir.c sig.c strbuf.c util.c variable.c xfnmatch.c xgetopt.c yash.c
+HEADERS = alias.h arith.h builtin.h common.h exec.h expand.h hashtable.h history.h input.h job.h mail.h option.h parser.h path.h plist.h redir.h refcount.h sig.h siglist.h strbuf.h util.h variable.h xfnmatch.h xgetopt.h yash.h
+MAIN_OBJS = alias.o arith.o builtin.o exec.o expand.o hashtable.o input.o job.o mail.o option.o parser.o path.o plist.o redir.o sig.o strbuf.o util.o variable.o xfnmatch.o xgetopt.o yash.o
+HISTORY_OBJS = history.o
+BUILTINS_ARCHIVE = builtins/builtins.a
+LINEEDIT_ARCHIVE = lineedit/lineedit.a
+OBJS = @OBJS@
+TARGET = @TARGET@
+VERSION = @VERSION@
+COPYRIGHT = @COPYRIGHT@
+BYPRODUCTS = makesignum.o makesignum signum.h configm.h *.dSYM
+
+DESTDIR =
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+datarootdir = @datarootdir@
+datadir = @datadir@
+yashdatadir = $(datadir)/$(TARGET)
+localedir = @localedir@
+mandir = @mandir@
+docdir = @docdir@
+htmldir = @htmldir@
+
+default_loadpath = @default_loadpath@
+enable_nls = @enable_nls@
+
+all: $(TARGET) share/config tester mofiles docs
+
+.c.o:
+	@rm -f $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $<
+
+$(TARGET): $(OBJS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
+$(BUILTINS_ARCHIVE): _PHONY
+	@+(cd builtins && $(MAKE))
+$(LINEEDIT_ARCHIVE): _PHONY
+	@+(cd lineedit && $(MAKE))
+makesignum:
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -o $@ $@.c $(LDLIBS)
+sig.o: signum.h
+signum.h: makesignum
+	./makesignum > $@
+variable.o yash.o: configm.h
+configm.h: Makefile
+	-@printf 'creating %s...' '$@'
+	@{ printf '/* $@: created by Makefile */\n'; \
+		printf '#ifndef YASH_CONFIGM_H\n'; \
+		printf '#define YASH_CONFIGM_H\n'; \
+		printf '#define PACKAGE_NAME "$(TARGET)"\n'; \
+		printf '#define PACKAGE_VERSION "$(VERSION)"\n'; \
+		printf '#define PACKAGE_COPYRIGHT "$(COPYRIGHT)"\n'; \
+		printf '#define YASH_DATADIR "$(yashdatadir)"\n'; \
+		printf '#define LOCALEDIR "$(localedir)"\n'; \
+		printf '#define DEFAULT_LOADPATH "$(default_loadpath)"\n'; \
+		printf '#endif\n'; \
+		} >$@
+	-@echo done
+share/config: Makefile
+	-@printf 'creating %s...' '$@'
+	@{ printf '# $@: created by Makefile\n'; \
+		printf "prefix='%s'\n" '$(prefix)'; \
+		printf "exec_prefix='%s'\n" '$(exec_prefix)'; \
+		printf "bindir='%s'\n" '$(bindir)'; \
+		printf "datarootdir='%s'\n" '$(datarootdir)'; \
+		printf "datadir='%s'\n" '$(datadir)'; \
+		printf "yashdatadir='%s'\n" '$(yashdatadir)'; \
+		printf "localedir='%s'\n" '$(localedir)'; \
+		printf "mandir='%s'\n" '$(mandir)'; \
+		printf "docdir='%s'\n" '$(docdir)'; \
+		printf "htmldir='%s'\n" '$(htmldir)'; \
+		} >$@
+	-@echo done
+
+test tests check: _PHONY $(TARGET)
+	@+(cd tests && $(MAKE))
+tester: _PHONY
+	@+(cd tests && $(MAKE) $@)
+mofiles: _PHONY
+	@+(cd po && $(MAKE))
+
+docs:
+	-@+(cd doc && $(MAKE))
+man html:
+	-@+(cd doc && $(MAKE) $@-rec)
+
+INSTALLBINDIRS = $(DESTDIR)$(bindir)
+INSTALLDATADIRS = $(DESTDIR)$(yashdatadir) $(DESTDIR)$(yashdatadir)/completion $(DESTDIR)$(yashdatadir)/initialization $(DESTDIR)$(mandir)
+INSTALLDIRS = $(INSTALLBINDIRS) $(INSTALLDATADIRS) $(DESTDIR)$(htmldir)
+install: install-binary install-data
+install-strip: install-binary-strip install-data
+install-binary: $(TARGET) installdirs-binary
+	$(INSTALL_PROGRAM) $(TARGET) $(DESTDIR)$(bindir)/$(TARGET)
+install-binary-strip: installdirs-binary
+	@+$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install-binary
+install-data: share/config installdirs-data-main
+	@(cd share && find . -type f) | while read -r file; do \
+		echo $(INSTALL_DATA) share/$$file $(DESTDIR)$(yashdatadir)/$$file || true; \
+		$(INSTALL_DATA) share/$$file $(DESTDIR)$(yashdatadir)/$$file; \
+	done
+	@+if $(enable_nls); then (cd po && $(MAKE) $@); fi
+	@+(cd doc && $(MAKE) install-rec)
+install-html:
+	@+(cd doc && $(MAKE) $@-rec)
+installdirs: installdirs-binary installdirs-data
+installdirs-binary: $(INSTALLBINDIRS)
+installdirs-data: installdirs-data-main
+	@+if $(enable_nls); then (cd po && $(MAKE) $@); fi
+	@+(cd doc && $(MAKE) installdirs-rec)
+installdirs-data-main: $(INSTALLDATADIRS)
+installdirs-html: $(DESTDIR)$(htmldir)
+$(INSTALLDIRS):
+	$(INSTALL_DIR) $@
+uninstall: uninstall-binary uninstall-data
+uninstall-binary:
+	rm -f $(DESTDIR)$(bindir)/$(TARGET)
+uninstall-data:
+	@(cd share && find . -type f) | while read -r file; do \
+		echo rm -f $(DESTDIR)$(yashdatadir)/$$file || true; \
+		rm -f $(DESTDIR)$(yashdatadir)/$$file; \
+	done
+	rm -f $(DESTDIR)$(yashdatadir)/config
+	-rmdir $(DESTDIR)$(yashdatadir)/completion
+	-rmdir $(DESTDIR)$(yashdatadir)/initialization
+	-rmdir $(DESTDIR)$(yashdatadir)
+	@+if $(enable_nls); then (cd po && $(MAKE) $@); fi
+	@+(cd doc && $(MAKE) $@-rec)
+
+DISTDIR = $(TARGET)-$(VERSION)
+DISTS = $(DISTDIR).tar $(DISTDIR).tar.Z $(DISTDIR).tar.gz $(DISTDIR).tar.bz2 $(DISTDIR).tar.xz $(DISTDIR).shar $(DISTDIR).shar.gz $(DISTDIR).zip
+ALL_DIST_TARGETS = dist-tarZ dist-gzip dist-bzip2 dist-xz dist-shar dist-zip
+DIST_TARGETS = dist-gzip dist-xz
+RM_DISTDIR = rm -rf $(DISTDIR) $(DISTDIR).tar
+$(DISTDIR): _PHONY
+	@+(cd po && $(MAKE) update-po)  # must be done first
+	rm -fr $@
+	mkdir -m 755 $@
+	@+umask 022; \
+	for d in $(DIRS); do \
+		(cd $$d && $(MAKE) DISTTARGETDIR=$@/$$d copy-distfiles) || exit; \
+	done
+	@find share -type d | while read -r dir; do \
+		echo mkdir -m 755 $@/$$dir || true; \
+		mkdir -m 755 $@/$$dir; \
+	done
+	@find share -type f | (umask 022; while read -r file; do \
+		echo cp $$file $@/$$file || true; \
+		cp $$file $@/$$file; \
+	done)
+	rm -f $@/share/config
+	find $@ | xargs touch -c -r $@
+# Only pax and compress conform to POSIX.
+dist:
+	@+$(MAKE) RM_DISTDIR=: $(DIST_TARGETS)
+	$(RM_DISTDIR)
+dist-all:
+	@+$(MAKE) DIST_TARGETS='$(ALL_DIST_TARGETS)' dist
+dist-tarZ: $(DISTDIR).tar.Z
+	$(RM_DISTDIR)
+dist-gzip: $(DISTDIR).tar.gz
+	$(RM_DISTDIR)
+dist-bzip2: $(DISTDIR).tar.bz2
+	$(RM_DISTDIR)
+dist-xz: $(DISTDIR).tar.xz
+	$(RM_DISTDIR)
+dist-shar: $(DISTDIR).shar.gz
+	$(RM_DISTDIR)
+dist-zip: $(DISTDIR).zip
+	$(RM_DISTDIR)
+$(DISTDIR).tar: $(DISTDIR)
+	$(ARCHIVER) $@ $(DISTDIR)
+$(DISTDIR).tar.Z: $(DISTDIR).tar
+	rm -rf $@
+	compress -c $(DISTDIR).tar > $@
+$(DISTDIR).tar.gz: $(DISTDIR).tar
+	rm -rf $@
+	gzip -c -9 $(DISTDIR).tar > $@
+$(DISTDIR).tar.bz2: $(DISTDIR).tar
+	rm -rf $@
+	bzip2 -k -9 $(DISTDIR).tar
+$(DISTDIR).tar.xz: $(DISTDIR).tar
+	rm -rf $@
+	xz -k $(DISTDIR).tar
+$(DISTDIR).shar: $(DISTDIR)
+	shar $(DISTDIR) > $@
+$(DISTDIR).shar.gz: $(DISTDIR).shar
+	gzip -9 $(DISTDIR).shar
+$(DISTDIR).zip: $(DISTDIR)
+	rm -rf $@
+	zip -rq $@ $(DISTDIR)
+distcheck: dist
+	# Currently, distcheck requires tar that automatically uncompresses
+	# the archive.
+	tar -x -f $(DISTDIR).tar.gz
+	(cd $(DISTDIR) && sh configure && make check dist)
+	$(RM_DISTDIR)
+
+DISTFILES = $(SOURCES) $(SOURCES:.c=.d) $(HEADERS) README README.ja COPYING INSTALL INSTALL.ja NEWS NEWS.ja THANKS configure Makefile.in install-sh makedeps.yash
+distfiles: makedeps $(DISTFILES)
+copy-distfiles: distfiles
+	mkdir -p $(topdir)/$(DISTTARGETDIR)
+	cp $(DISTFILES) $(topdir)/$(DISTTARGETDIR)
+makedeps: _PHONY $(TARGET)
+	$(topdir)/$(TARGET) $(topdir)/makedeps.yash $(SOURCES)
+
+# ctags conforms to POSIX, but etags and cscope do not.
+CTAGS = @CTAGS@
+CTAGSARGS = @CTAGSARGS@
+ETAGS = @ETAGS@
+ETAGSARGS = @ETAGSARGS@
+CSCOPE = @CSCOPE@
+CSCOPEARGS = @CSCOPEARGS@
+tags: $(SOURCES) $(HEADERS)
+	$(CTAGS) $(CTAGSARGS)
+TAGS: $(SOURCES) $(HEADERS)
+	$(ETAGS) $(ETAGSARGS)
+cscope: cscope.out
+cscope.out: $(SOURCES) $(HEADERS)
+	$(CSCOPE) $(CSCOPEARGS)
+
+mostlyclean: _mostlyclean
+	-@+(cd builtins && $(MAKE) mostlyclean)
+	-@+(cd doc      && $(MAKE) mostlyclean)
+	-@+(cd lineedit && $(MAKE) mostlyclean)
+	-@+(cd po       && $(MAKE) mostlyclean)
+	-@+(cd tests    && $(MAKE) mostlyclean)
+_mostlyclean:
+	-rm -rf $(OBJS) $(BYPRODUCTS) $(DISTDIR)
+clean: _clean
+	-@+(cd builtins && $(MAKE) clean)
+	-@+(cd doc      && $(MAKE) clean)
+	-@+(cd lineedit && $(MAKE) clean)
+	-@+(cd po       && $(MAKE) clean)
+	-@+(cd tests    && $(MAKE) clean)
+_clean: _mostlyclean
+	-rm -rf $(TARGET) share/config $(DISTS)
+distclean:
+	-@+(cd builtins && $(MAKE) distclean)
+	-@+(cd doc      && $(MAKE) distclean)
+	-@+(cd lineedit && $(MAKE) distclean)
+	-@+(cd po       && $(MAKE) distclean)
+	-@+(cd tests    && $(MAKE) distclean)
+	-@+$(MAKE) _distclean
+_distclean: _clean
+	-rm -rf Makefile config.log config.status config.h tags TAGS cscope.out
+maintainer-clean:
+	-@echo 'This command is intended for maintainers to use;'
+	-@echo 'it deletes files that may need special tools to rebuild.'
+	-@+(cd builtins && $(MAKE) maintainer-clean)
+	-@+(cd doc      && $(MAKE) maintainer-clean)
+	-@+(cd lineedit && $(MAKE) maintainer-clean)
+	-@+(cd po       && $(MAKE) maintainer-clean)
+	-@+(cd tests    && $(MAKE) maintainer-clean)
+	-@+$(MAKE) _distclean
+	-rm -rf $(SOURCES:.c=.d)
+
+config.h: config.status
+	$(SHELL) config.status $@
+Makefile: Makefile.in config.status
+	$(SHELL) config.status $@
+config.status: configure
+	$(SHELL) config.status --recheck
+
+.PHONY: all test tests check tester mofiles docs man html install install-strip install-binary install-binary-strip install-data install-html installdirs installdirs-binary installdirs-data installdirs-data-main installdirs-html uninstall uninstall-binary uninstall-data dist dist-tarZ dist-gzip dist-bzip2 dist-xz dist-shar dist-zip dist-all distcheck distfiles copy-distfiles makedeps cscope mostlyclean _mostlyclean clean _clean distclean _distclean maintainer-clean
+_PHONY:
+
+@MAKE_INCLUDE@ alias.d
+@MAKE_INCLUDE@ arith.d
+@MAKE_INCLUDE@ builtin.d
+@MAKE_INCLUDE@ exec.d
+@MAKE_INCLUDE@ expand.d
+@MAKE_INCLUDE@ hashtable.d
+@MAKE_INCLUDE@ history.d
+@MAKE_INCLUDE@ input.d
+@MAKE_INCLUDE@ job.d
+@MAKE_INCLUDE@ mail.d
+@MAKE_INCLUDE@ makesignum.d
+@MAKE_INCLUDE@ option.d
+@MAKE_INCLUDE@ parser.d
+@MAKE_INCLUDE@ path.d
+@MAKE_INCLUDE@ plist.d
+@MAKE_INCLUDE@ redir.d
+@MAKE_INCLUDE@ sig.d
+@MAKE_INCLUDE@ strbuf.d
+@MAKE_INCLUDE@ util.d
+@MAKE_INCLUDE@ variable.d
+@MAKE_INCLUDE@ xfnmatch.d
+@MAKE_INCLUDE@ xgetopt.d
+@MAKE_INCLUDE@ yash.d

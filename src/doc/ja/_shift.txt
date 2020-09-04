@@ -1,0 +1,49 @@
+= Shift 組込みコマンド
+:encoding: UTF-8
+:lang: ja
+//:title: Yash マニュアル - Shift 組込みコマンド
+
+dfn:[Shift 組込みコマンド]は{zwsp}link:params.html#positional[位置パラメータ]または{zwsp}link:params.html#arrays[配列]の要素のいくつかを削除します。
+
+[[syntax]]
+== 構文
+
+- +shift [-A {{配列名}}] [{{個数}}]+
+
+[[description]]
+== 説明
+
+Shift コマンドは{zwsp}link:params.html#positional[位置パラメータ]または{zwsp}link:params.html#arrays[配列]の要素のうち最初のいくつかを削除します。削除するパラメータ・要素の数はオペランドで指定します。
+
+[[options]]
+== オプション
+
++-A {{配列}}+::
++--array={{配列}}+::
+位置パラメータではなく{{配列}}の最初の要素を削除します。
+
+[[operands]]
+== オペランド
+
+{{個数}}::
+削除する位置パラメータまたは配列の要素の個数を指示する整数です。
++
+実際の位置パラメータ・要素の個数より大きい数を指定するとエラーになります。省略すると 1 を指定したものとみなします。負数を指定すると最初ではなく最後の位置パラメータまたは配列要素を削除します。
+
+[[exitstatus]]
+== 終了ステータス
+
+エラーがない限り shift コマンドの終了ステータスは 0 です。
+
+[[notes]]
+== 補足
+
+Shift コマンドは{zwsp}link:builtin.html#types[特殊組込みコマンド]です。
+
+位置パラメータの個数は{zwsp}link:params.html#special[特殊パラメータ +&#35;+] によって知ることができます。配列の要素の個数は +$&#123;{{配列}}[&#35;]}+ によって知ることができます。
+
+POSIX には +-A+ (+--array+) オプションに関する規定はありません。よってこのオプションは link:posix.html[POSIX 準拠モード]では使えません。
+
+POSIX 準拠モードでは負の{{個数}}は指定できません。
+
+// vim: set filetype=asciidoc expandtab:

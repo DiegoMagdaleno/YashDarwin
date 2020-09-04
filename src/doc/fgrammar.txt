@@ -1,0 +1,321 @@
+= Formal definition of command syntax
+:encoding: UTF-8
+:lang: en
+//:title: Yash manual - Formal definition of command syntax
+:description: This page gives the formal definition of yash command syntax.
+
+This chapter defines the syntax of the shell command language.
+
+[NOTE]
+Some of the syntactic features described below are not supported in the
+link:posix.html[POSIXly-correct mode].
+
+[[token]]
+== Tokenization
+
+The characters of the input source code are first delimited into tokens.
+Tokens are delimited so that the earlier token spans as long as possible.
+A sequence of one or more unquoted blank characters delimits a token.
+
+The following tokens are the operator tokens:
+
+`&` `&&` `(` `)` `;` `;;` `|` `||`
+`<` `<<` `<&` `<(` `<<-` `<<<` `<>`
+`>` `>>` `>&` `>(` `>>|` `>|` (newline)
+
+[NOTE]
+Unlike other programming languages, the newline operator is a token rather
+than a white space.
+
+Characters that are not blank nor part of an operator compose a word token.
+Words are parsed by the following parsing expression grammar:
+
+[[d-word]]Word::
+(<<d-word-element,WordElement>> / !<<d-special-char,SpecialChar>> .)+
+
+[[d-word-element]]WordElement::
++\+ . / +
+`'` (!`'` .)* `'` / +
++"+ <<d-quote-element,QuoteElement>>* +"+ / +
+<<d-parameter,Parameter>> / +
+<<d-arithmetic,Arithmetic>> / +
+<<d-command-substitution,CommandSubstitution>>
+
+[[d-quote-element]]QuoteElement::
++\+ ([+$&#96;"&#92;+] / <newline>) / +
+<<d-parameter,Parameter>> / +
+<<d-arithmetic,Arithmetic>> / +
+<<d-command-substitution-quoted,CommandSubstitutionQuoted>> / +
+![+&#96;"&#92;+] .
+
+[[d-parameter]]Parameter::
++$+ [+@*#?-$!+ [:digit:]] / +
++$+ <<d-portable-name,PortableName>> / +
++$+ <<d-parameter-body,ParameterBody>>
+
+[[d-portable-name]]PortableName::
+![++0++-++9++] [++0++-++9++ ++ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_++]+
+
+[[d-parameter-body]]ParameterBody::
++{+ <<d-parameter-number,ParameterNumber>>?
+(<<d-parameter-name,ParameterName>> / ParameterBody / +$+ ParameterBody /
+<<d-arithmetic,Arithmetic>> / <<d-command-substitution,CommandSubstitution>>)
+<<d-parameter-index,ParameterIndex>>? <<d-parameter-match,ParameterMatch>>?
++}+
+
+[[d-parameter-number]]ParameterNumber::
+`#` ![`}+=:/%`] !([`-?#`] !`}`)
+
+[[d-parameter-name]]ParameterName::
+[+@*#?-$!+] / +
+[[:alnum:] +_+]+
+
+[[d-parameter-index]]ParameterIndex::
++[+ <<d-parameter-index-word,ParameterIndexWord>> (+,+ ParameterIndexWord)?
++]+
+
+[[d-parameter-index-word]]ParameterIndexWord::
+(<<d-word-element,WordElement>> / ![+"'],+] .)+
+
+[[d-parameter-match]]ParameterMatch::
+`:`? [`-+=?`] <<d-parameter-match-word,ParameterMatchWord>> / +
+(`#` / `##` / `%` / `%%`) ParameterMatchWord / +
+(`:/` / `/` [`#%/`]?)
+<<d-parameter-match-word-no-slash,ParameterMatchWordNoSlash>>
+(+/+ ParameterMatchWord)?
+
+[[d-parameter-match-word]]ParameterMatchWord::
+(<<d-word-element,WordElement>> / ![+"'}+] .)*
+
+[[d-parameter-match-word-no-slash]]ParameterMatchWordNoSlash::
+(<<d-word-element,WordElement>> / ![+"'/}+] .)*
+
+[[d-arithmetic]]Arithmetic::
+`$((` <<d-arithmetic-body,ArithmeticBody>>* `))`
+
+[[d-arithmetic-body]]ArithmeticBody::
++\+ . / +
+<<d-parameter,Parameter>> / +
+<<d-arithmetic,Arithmetic>> / +
+<<d-command-substitution,CommandSubstitution>> / +
++(+ ArithmeticBody +)+ / +
+![+`()+] .
+
+[[d-command-substitution]]CommandSubstitution::
++$(+ <<d-complete-program,CompleteProgram>> +)+ / +
++&#96;+ <<d-command-substitution-body,CommandSubstitutionBody>>* +&#96;+
+
+[[d-command-substitution-quoted]]CommandSubstitutionQuoted::
++$(+ <<d-complete-program,CompleteProgram>> +)+ / +
++&#96;+ <<d-command-substitution-body-quoted,CommandSubstitutionBodyQuoted>>*
++&#96;+
+
+[[d-command-substitution-body]]CommandSubstitutionBody::
++\+ [+$&#96;\+] / +
+!++&#96;++ .
+
+[[d-command-substitution-body-quoted]]CommandSubstitutionBodyQuoted::
++\+ [+$&#96;\`+] / +
+!++&#96;++ .
+
+[[d-special-char]]SpecialChar::
+[+|&amp;;&lt;&gt;()&#96;&#92;"'+ [:blank:]] / <newline>
+
+The set of terminals of the grammar is the set of characters that can
+be handled on the environment in which the shell is run (a.k.a. execution
+character set), with the exception that the set does not contain the null
+character (`'\0'`).
+
+Strictly speaking, the definition above is not a complete parsing expression
+grammar because the rule for <<d-command-substitution,CommandSubstitution>>
+(<<d-command-substitution-quoted,Quoted>>) depends on
+<<d-complete-program,CompleteProgram>> which is a non-terminal of the syntax.
+
+[[classification]]
+=== Token classification
+
+After a word token is delimited, the token may be further classified as an
+IO_NUMBER token, reserved word, name word, assignment word, or just normal
+word.
+Classification other than the normal word is applied only when applicable in
+the context in which the word appears.
+See link:syntax.html#tokens[Tokens and keywords] for the list of the reserved
+words (keywords) and the context in which a word may be recognized as a
+reserved word.
+
+A token is an IO_NUMBER token iff it is composed of digit characters only and
+immediately followed by +<+ or +>+.
+
+An assignment token is a token that starts with a name followed by +=+:
+
+[[d-assignment-word]]AssignmentWord::
+<<d-assignment-prefix,AssignmentPrefix>> <<d-word,Word>>
+
+[[d-assignment-prefix]]AssignmentPrefix::
+<<d-name,Name>> +=+
+
+[[d-name]]Name::
+!\[[:digit:]] \[[:alnum:] +_+]+
+
+[[comments]]
+=== Comments
+
+A comment begins with `#` and continues up to (but not including) the next
+newline character.
+Comments are treated like a blank character and do not become part of a token.
+The initial `#` of a comment must appear as if it would otherwise be the first
+character of a word token; Other ++#++s are just treated as part of a word
+token.
+
+[[d-comment]]Comment::
+`#` (!<newline> .)*
+
+[[syntax]]
+== Syntax
+
+After tokens have been delimited, the sequence of the tokens is parsed
+according to the context-free grammar defined below, where `*`, `+`, and `?`
+should be interpreted in the same manner as standard regular expression:
+
+[[d-complete-program]]CompleteProgram::
+<<d-nl,NL>>* | <<d-compound-list,CompoundList>>
+
+[[d-compound-list]]CompoundList::
+<<d-nl,NL>>* <<d-and-or-list,AndOrList>>
+({zwsp}(+;+ | +&+ | NL) <<d-complete-program,CompleteProgram>>)?
+
+[[d-and-or-list]]AndOrList::
+<<d-pipeline,Pipeline>> &#40;(+&&+ | +||+) <<d-nl,NL>>* Pipeline)*
+
+[[d-pipeline]]Pipeline::
++!+? <<d-command,Command>> (+|+ <<d-nl,NL>>* Command)*
+
+[[d-command]]Command::
+<<d-compound-command,CompoundCommand>> <<d-redirection,Redirection>>* | +
+<<d-function-definition,FunctionDefinition>> | +
+<<d-simple-command,SimpleCommand>>
+
+[[d-compound-command]]CompoundCommand::
+<<d-subshell,Subshell>> | +
+<<d-grouping,Grouping>> | +
+<<d-if-command,IfCommand>> | +
+<<d-for-command,ForCommand>> | +
+<<d-while-command,WhileCommand>> | +
+<<d-case-command,CaseCommand>> | +
+<<d-double-bracket-command,DoubleBracketCommand>> | +
+<<d-function-command,FunctionCommand>>
+
+[[d-subshell]]Subshell::
++(+ <<d-compound-list,CompoundList>> +)+
+
+[[d-grouping]]Grouping::
++{+ <<d-compound-list,CompoundList>> +}+
+
+[[d-if-command]]IfCommand::
++if+ <<d-compound-list,CompoundList>> +then+ CompoundList
+(+elif+ CompoundList +then+ CompoundList)*
+(+else+ CompoundList)? +fi+
+
+[[d-for-command]]ForCommand::
++for+ <<d-name,Name>>
+({zwsp}(<<d-nl,NL>>* +in+ <<d-word,Word>>*)? (+;+ | NL) NL*)?
++do+ <<d-compound-list,CompoundList>> +done+
+
+[[d-while-command]]WhileCommand::
+(+while+ | +until+) <<d-compound-list,CompoundList>> +do+ CompoundList +done+
+
+[[d-case-command]]CaseCommand::
++case+ <<d-word,Word>> <<d-nl,NL>>* +in+ NL* <<d-case-list,CaseList>>? +esac+
+
+[[d-case-list]]CaseList::
+<<d-case-item,CaseItem>> (+;;+ <<d-nl,NL>>* CaseList)?
+
+[[d-case-item]]CaseItem::
++(+? <<d-word,Word>> (+|+ Word)* +)+ <<d-complete-program,CompleteProgram>>
+
+[[d-double-bracket-command]]DoubleBracketCommand::
++[[+ <<d-ors,Ors>> +]]+
+
+[[d-ors]]Ors::
+<<d-ands,Ands>> (+||+ Ands)*
+
+[[d-ands]]Ands::
+<<d-nots,Nots>> (+&&+ Nots)*
+
+[[d-nots]]Nots::
+++!++* <<d-primary,Primary>>
+
+[[d-primary]]Primary::
+(+-b+ | +-c+ | +-d+ | +-e+ | +-f+ | +-G+ | +-g+ | +-h+ | +-k+ | +-L+ | +-N+ |
++-n+ | +-O+ | +-o+ | +-p+ | +-r+ | +-S+ | +-s+ | +-t+ | +-u+ | +-w+ | +-x+ |
++-z+) <<d-word,Word>> | +
+Word (+-ef+ | +-eq+ | +-ge+ | +-gt+ | +-le+ | +-lt+ | +-ne+ | +-nt+ | +-ot+ |
++-veq+ | +-vge+ | +-vgt+ | +-vle+ | +-vlt+ | +-vne+ | +=+ | +==+ | +===+ |
++=~+ | +!=+ | +!==+ | +<+ | +>+) Word | +
++(+ <<d-ors,Ors>> +)+ | +
+Word
+
+[[d-function-command]]FunctionCommand::
++function+ <<d-word,Word>> (+(+ +)+)? <<d-nl,NL>>*
+<<d-compound-command,CompoundCommand>> <<d-redirection,Redirection>>*
+
+[[d-function-definition]]FunctionDefinition::
+<<d-name,Name>> +(+ +)+ <<d-nl,NL>>*
+<<d-compound-command,CompoundCommand>> <<d-redirection,Redirection>>*
+
+[[d-simple-command]]SimpleCommand::
+(<<d-assignment,Assignment>> | <<d-redirection,Redirection>>) SimpleCommand?
+| +
+<<d-word,Word>> (Word | <<d-redirection,Redirection>>)*
+
+[[d-assignment]]Assignment::
+<<d-assignment-word,AssignmentWord>> | +
+<<d-assignment-prefix,AssignmentPrefix>>++(++
+<<d-nl,NL>>* (<<d-word,Word>> NL*)* +)+
+
+[[d-redirection]]Redirection::
+IO_NUMBER? <<d-redirection-operator,RedirectionOperator>> <<d-word,Word>> | +
+IO_NUMBER? +<(+ <<d-complete-program,CompleteProgram>> +)+ | +
+IO_NUMBER? +>(+ CompleteProgram +)+
+
+[[d-redirection-operator]]RedirectionOperator::
+`<` | `<>` | `>` | `>|` | `>>` | `>>|` | `<&` | `>&` | `<<` | `<<-` | `<<<`
+
+[[d-nl]]NL::
+<newline>
+
+In the rule for <<d-primary,Primary>>, <<d-word,Word>> tokens must not be
++]]+. Additionally, if a Primary starts with a Word, it must not be any of the
+possible unary operators allowed in the rule.
+
+In the rule for <<d-simple-command,SimpleCommand>>, a <<d-word,Word>> token is
+accepted only when the token cannot be parsed as the first token of an
+<<d-assignment,Assignment>>.
+
+In the rule for <<d-assignment,Assignment>>, the +(+ token must immediately
+follow the <<d-assignment-prefix,AssignmentPrefix>> token, without any blank
+characters in between.
+
+link:redir.html#here[Here-document] contents do not appear as part of the
+grammar above.
+They are parsed just after the newline (<<d-nl,NL>>) token that follows the
+corresponding redirection operator.
+
+[[alias]]
+=== Alias substitution
+
+Word tokens are subject to link:syntax.html#aliases[alias substitution].
+
+- If a word is going to be parsed as a <<d-word,Word>> of a
+  <<d-simple-command,SimpleCommand>>, the word is subjected to alias
+  substitution of any kind (normal and global aliases).
+- If a word is the next token after the result of an alias substitution and
+  the substitution string ends with a blank character, then the word is also
+  subjected to alias substitution of any kind.
+- Other words are subjected to global alias substitution unless the shell is
+  in the link:posix.html[POSIXly-correct mode].
+
+Tokens that are classified as reserved words are not subject to alias
+substitution.
+
+// vim: set filetype=asciidoc textwidth=78 expandtab:

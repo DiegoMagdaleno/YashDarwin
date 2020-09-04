@@ -1,0 +1,1050 @@
+History of Yash
+
+ Legend:
+   +: new feature
+   -: removed feature
+   =: specification change
+   *: bug fix
+   x: new bug
+
+----------------------------------------------------------------------
+Yash 2.51
+
+  *  The "command" built-in with the -v or -V option was printing
+     the pathnames of external commands with a redundant leading slash
+     when the current working directory is "/" or "//".
+
+----------------------------------------------------------------------
+Yash 2.50
+
+  *  With the "-o notify" option enabled, the "fg" built-in was
+     redundantly reporting the status of the job that had been resumed
+     and exited.
+  *  Line-editing no longer hangs when the terminfo database maps a
+     key to an empty string.
+  *  When $LINENO is exported, external commands now receive the
+     correct value of the variable.
+  .  Updated the sample initialization script (yashrc):
+    +  A wrapper function for the "crontab" command is now installed
+       to prevent accidental removal by "crontab -r" where the user
+       intends "crontab -e".
+  .  Updated completion scripts:
+    +  git-rebase: support new options in Git 2.24.0.
+
+----------------------------------------------------------------------
+Yash 2.49
+
+  +  '--for-local' option.
+  =  The '--no-unset' option now rejects unset variables not only in
+     parameter expansion but also in arithmetic expansion.
+  *  Expansion of ""$*, ""$@, $*"", and $@"" now correctly yields an
+     empty string rather than nothing when there are no positional
+     parameters.
+  *  The $RANDOM variable was expanding to a value larger than 32767
+     on some systems.
+  *  The "\e" escape sequence was not working in the "echo" built-in.
+  *  When a last command is a subshell, the parent shell's jobs were
+     not being cleared when entering the subshell.
+  *  The job status was not being updated correctly if a process ID
+     was reused by another process before the previous process was
+     removed from the job list.
+  *  The "typeset" built-in now prints functions that contain a simple
+     command whose command name is a keyword in a format that can
+     successfully re-parsed by the shell.
+  .  Updated completion scripts:
+    *  Remote branch names are now correctly completed for the
+       argument to Git remote/fetch/pull/push commands.
+    *  Local pathname operands are now correctly completed for the
+       rsync command.
+
+----------------------------------------------------------------------
+Yash 2.48
+
+  +  The double-bracket command (the [[ ... ]] syntax)
+  +  The "local" built-in
+  +  The '--le-predict-empty' option
+  +  The prompt string now can be defined with the $YASH_PS...
+     variables.
+  =  Command line prediction no longer shows suggestion before you
+     start typing a command. Use the new '--le-predict-empty' option
+     to restore the previous behavior.
+  =  The default value of $PS1 has been changed.
+  *  The line number is now correctly counted in arithmetic
+     expansions that contain newlines.
+  *  Subshells in the EXIT trap were unexpectedly exiting with the
+     exit status of the last command executed before the EXIT trap on
+     the main shell.
+  *  A new EXIT trap that was set in a subshell in the EXIT trap was
+     unexpectedly being ignored.
+  *  The "typeset" built-in was crashing when printing a function that
+     contains a here-document that contains a command substitution
+     that contains more than one command.
+  *  The "typeset" built-in was forgetting to print here-document
+     contents when printing a function that contains a process
+     substitution (or redirection) that contains here-documents.
+  *  The variable name token in the for command and the word following
+     a here-document redirection operator are now correctly parsed
+     even when it resulted from an alias substitution whose value
+     begins with a blank.
+  *  The "do" keyword in a for loop is no longer subject to alias
+     substitution.
+  *  An invalid semicolon that appears at the beginning of a line as a
+     result of alias substitution in a for loop is now correctly
+     rejected.
+  .  For more strict POSIXly-correctness, some syntactic constructions
+     are now regarded as an error in the POSIXly-correct mode:
+    *  An IO_NUMBER token cannot be the operand of a redirection.
+    *  Keywords immediately following a redirection are not
+       recognized.
+  .  Updated the sample initialization script (yashrc):
+    =  The prompt strings are now defined with the $YASH_PS...
+       variables.
+    *  Window title update should now work on more terminals.
+    *  Any predefined handlers for SIGTSTP, SIGTTIN, and SIGTTOU are
+       now cancelled so that jobs can be suspended properly.
+  .  Updated completion scripts:
+    *  git: pathnames are now correctly completed with the latest Git.
+    +  git-grep: support new options in Git 2.19.1.
+    +  git-stash: support new options in Git 2.18.0.
+    +  ping: support some common options
+    =  ssh, ssh-keygen: support new options in OpenSSH 7.7.
+
+----------------------------------------------------------------------
+Yash 2.47
+
+  +  '--errreturn' option.
+  =  Expansion results printed by the -x option is now quoted to
+     disambiguate presence of special characters.
+  =  When the shell prints aliases, variables, key bindings, etc. they
+     are now printed with less quotes.
+  *  The "set" built-in without any argument now prints not only local
+     variables but also global.
+  *  The "." built-in no longer leaves temporary positional parameters
+     after a file-not-found error.
+  *  The ">" redirection with the noclobber option is now more
+     reliable than before. Previously, there was little possibility of
+     overwriting an existing regular file in case another process
+     simultaneously replaces the file.
+  .  Updated the sample initialization script (yashrc):
+    +  Example code for enabling "direnv".
+
+----------------------------------------------------------------------
+Yash 2.46
+
+  =  Global aliases are now substituted in all locations, including
+     part of compound commands where only operators are syntactically
+     acceptable.
+  *  The shell now reads and executes all shell commands line by line.
+     Previously, commands that are not from a file or the standard
+     input were parsed all at once before being executed.
+  *  After alias substitution where the alias value ends with a blank,
+     the next word is also subject to alias substitution, but
+     previously this substitution was being applied only once, which
+     was a different behavior from many other shells.
+  *  After alias substitution where the alias value ends with a blank,
+     global aliases were being applied twice, which is now just once.
+  *  Line continuations no longer prevent recursive alias
+     substitution.
+
+----------------------------------------------------------------------
+Yash 2.45
+
+  +  [line-editing] new line-editing commands:
+        complete-max-then-list, complete-max-then-next-candidate,
+        complete-max-then-prev-candidate
+  =  In prompt strings $PS1 and $PS2, the job count printed by the \j
+     notation included finished jobs that have not yet waited for.
+     That was confusing, so the job count no longer includes finished
+     jobs that have once had its "Done" status reported to the user.
+  =  The "jobs" built-in, with the -n option, no longer clears
+     finished jobs that are not being reported.
+  *  In arithmetic expansion, unset variables now successfully expand
+     to a value of "0".
+  *  With the "-o notify" option, job status change was not being
+     printed until the shell receives a SIGCHLD.
+  .  Updated the default initialization script (yashrc):
+    +  Confirm before clearing the whole history by "history -c'.
+  .  Updated completion scripts:
+    +  carthage: --cache-builds option
+    *  git: at most 10 candidates are now proposed for a commit hash.
+
+----------------------------------------------------------------------
+Yash 2.44
+
+  +  Command line prediction and the '--le-predict' option.
+  +  A default initialization script is automatically loaded if the
+     ~/.yashrc file cannot be loaded.
+  =  During shell startup, $YASH_LOADPATH is now initialized only if
+     not set in the environment.
+  *  Updated completion script for: carthage, git, git-log,
+     git-revert, git-submodule, ssh
+  *  The "return" built-in was wrongly refusing to return from a
+     script sourced by the "." built-in in an interactive shell.
+  *  In the "test" built-in, the unary "-o" operator was returning the
+     wrong answer if the given option name was negated with the "no"
+     prefix (e.g. "test -o noclobber").
+  *  The "wait" built-in now returns an exit status of 1 if any
+     operand is invalid, ignoring results for any other operands.
+  *  In a for loop without the "in" keyword, a semicolon that delimits
+     the variable name, if any, now must appear on the same line as
+     the variable name.
+  =  Support for POSIX.1-2008 Technical Corrigendum 2 (2016).
+     This affects the shell's behavior only in the POSIXly-correct
+     mode unless marked with (*) in the following:
+    .  In a pipeline, the reserved word "!" must now be delimited by
+       a white space when followed by a parenthesis "(".
+    .  In a for loop without the "in" keyword, the variable name and
+       the "do" keyword can now be separated by a semicolon.
+    .  Variables that are assigned in a simple command whose command
+       is a function no longer persist after the function finishes.
+    .  The standard input of an asynchronous list is now implicitly
+       redirected to /dev/null when job control is off. Previously,
+       this was done when the shell was interactive in the POSIXly-
+       correct mode.
+    .  The SIGINT and SIGQUIT signals on an asynchronous list are now
+       ignored only when job control is off.
+    .  The "bindkey", "complete", "dirs", "disown", "hash", "help",
+       "history", "popd", "pushd", "suspend", "type", "typeset", and
+       "ulimit" built-ins are now semi-special built-ins.
+    .  The "break" and "continue" built-ins now interrupt lexically
+       enclosing loops only. (*)
+    .  Unquoted $* and $@ now expand to separate positional
+       parameters, even if $IFS is an empty string. (*)
+    .  On an assignment error, a non-interactive shell now always
+       exits, regardless of command type. (*)
+    .  When any error occurs in a special built-in in non-interactive
+       shell, the shell now exits, regardless of error type.
+
+----------------------------------------------------------------------
+Yash 2.43
+
+  *  Updated completion script for: carthage, cd, su
+
+----------------------------------------------------------------------
+Yash 2.42
+
+  +  '--pipefail' option.
+  +  New completion script for: carthage, dnf, git-rev-parse, tree,
+     watch
+  +  Updated completion script for: cd, git, git-bisect, git-rev-list
+     (Git 2.9.2).
+  =  Yash now supports the 2013 edition of POSIX.1-2008.
+  =  Unclosed here-documents are now always rejected.
+  =  A job-control shell now ignores SIGTTIN and SIGTTOU by default.
+  =  Line-editing can now be interrupted by SIGINT.
+  =  The "-o errexit" option is now applied to redirection errors on
+     compound commands and expansion errors in the for and case
+     commands.
+  *  In backquoted command substitutions that occur in double quotes,
+     backslashes that escape a double quote are now handled before the
+     containing command is parsed.
+
+----------------------------------------------------------------------
+Yash 2.41
+
+  +  '--emptylastfield' option.
+  +  New option for the "shift" built-in: -A
+  +  The "shift" built-in now accepts negative counts.
+  +  New completion script for: git-notes, git-reflog, git-worktree
+  =  The non-interactive shell now exits on an assignment error
+     in a simple command without a command name.
+  =  The exit status is now non-zero when a for loop has been
+     interrupted because of an read-only variable.
+  =  When there is no positional parameter, the word """$@" is now
+     expanded to an empty word, producing the same result as "$@""".
+  =  The behavior of field splitting has been modified to match the
+     intended interpretation of POSIX: If field splitting yields more
+     than one field and the last field is empty, the last field is now
+     removed.
+  =  The "read" built-in now removes leading whitespaces when
+     assigning the last input value to the variable.
+  =  The first character of $IFS is now always used as a separator
+     when concatenating positional parameters. Previously, $IFS was
+     ignored in some corner cases.
+  *  Unclosed process redirections are now detected as syntax error.
+  *  When $ECHO_STYLE was GNU or ZSH, the "echo" built-in was
+     incorrectly ignoring single hyphen operands.
+  *  The "typeset" built-in was crashing when used with a temporary
+     assignment to a variable not specified in the built-in operands.
+  *  In the "typeset" built-in, the -r option was not effective when
+     printing functions.
+  *  The "typeset" built-in now detects combination of the -f and -g
+     options as an error.
+  *  The "fg" and "bg" built-ins no longer try to resume a non-job-
+     controlled job when given no operand.
+  *  In range brace expansion, integers were not always parsed
+     correctly.
+  *  The "fc" built-in was not handling the history range correctly
+     when the range was specified with an unused entry number.
+  *  The "fc" built-in was incorrectly rejecting the syntax of the
+     form "fc -s foo=bar n".
+  *  The interactive shell was unexpectedly forgetting the exit status
+     of background jobs when reporting the job status.
+  *  Fixed potential undefined behavior during reading a history file.
+  *  Parameter expansions of the form ${foo/bar/baz} are now rejected
+     in the POSIXly-correct mode, as documented in the manual.
+  *  Single- or double-quoted empty words were incorrectly being
+     removed in field splitting.
+  *  Backslash escapes are now recognized in parameter indexes.
+
+----------------------------------------------------------------------
+Yash 2.40
+
+  =  The "unset" built-in no longer rejects variable names containing
+     the "=" symbol as an error. They are now silently ignored.
+  =  In the POSIXly-correct mode, unclosed here-documents are now
+     treated as an error.
+  *  Fixed possible arithmetic overflow errors in memory allocation
+     which might result in an undefined behavior.
+  *  Fixed crash on assigning a floating-point number in arithmetic
+     expansion.
+  *  Fixed memory leak on finding a command in a relative path from
+     $PATH.
+  *  The parameter expansion ${foo##bar*} was being treated like
+     ${foo##bar} where the asterisk should match up to the end of the
+     parameter value.
+  *  The parameter expansion ${foo%%*} was being expanded to ${foo}
+     where it should expand to an empty string.
+  *  The "getopts" built-in no longer rejects digits as option
+     characters.
+  *  The non-interactive shell no longer exits when the "command"
+     built-in executes the "." built-in and the script is not found.
+  *  Fixed incorrect exit status of simple commands where command
+     substitution is performed during command word expansion which
+     yields no command line words.
+  *  The "exec" built-in now correctly exits with an exit status of
+     127 for a script file not found.
+  *  Pipes were not being connected as expected during command word
+     expansion.
+  *  The "fg" and "bg" built-ins now report an error when they fail to
+     print the job name.
+
+----------------------------------------------------------------------
+Yash 2.39
+
+  +  New options for the "read" built-in: -e, -P, -p
+  +  New completion script for: passwd, valgrind
+  -  The configuration option '--disable-alias' has been dropped.
+  =  The "read" built-in now requires the -e (--line-editing) option
+     to enable line-editing.
+  =  The behavior of the "trap" built-in now conforms to POSIX.1-2013.
+     The built-in prints the traps for the calling shell rather than
+     the subshell when it is executed in a command substitution.
+  =  The manual for the "return" built-in has been clarified as to
+     what the built-in can return from. The behavior of the built-in
+     has been modified accordingly. It no longer interrupts the "eval"
+     and "fc" built-ins.
+  *  Crash on division by zero with the "/=" or "%=" operator
+     in arithmetic expansion.
+  *  Crash in the "complete" built-in called without the -D option.
+  *  Yash no longer tries to find the profile and rcfile scripts in
+     the root directory when $HOME is not set.
+  *  The "read" built-in with a single operand was failing to trim
+     initial IFS whitespaces in field splitting.
+  *  The "read" built-in was not handling backslashes correctly in
+     field splitting if $IFS contained a backslash.
+  *  The "-o allexport" option was being ignored when an array is
+     assigned by the "read" built-in with the -A option.
+  *  Traps are no longer handled while waiting for input with line-
+     editing in the "read" built-in.
+  *  Operands to the "set" built-in are now correctly completed.
+  *  Minor fix in completion script for "git-svn".
+
+----------------------------------------------------------------------
+Yash 2.38
+
+  +  New completion scripts for: git-rm
+  =  In the POSIXly-correct mode, functions must now be defined with a
+     portable name.
+  *  Backslashes following IFS characters were wrongly being dropped
+     in field splitting.
+  *  In the POSIXly-correct mode, non-portable variable names are no
+     longer allowed in for loops.
+  *  Completion error on words following a tilde expansion.
+  *  Completion error on moved or copied tracked files for git-add and
+     git-commit.
+  *  Completion error on untracked file for git-commit.
+
+----------------------------------------------------------------------
+Yash 2.37
+
+  +  Updated completion scripts for:
+     git-checkout (Git 2.1.2), git-push (Git 2.0.1), git-submodule
+     (Git 2.1.2).
+
+----------------------------------------------------------------------
+Yash 2.36
+
+  +  New completion scripts for: git-describe, tig.
+  +  Updated completion script for: git-branch (Git 1.9.0).
+
+----------------------------------------------------------------------
+Yash 2.35
+
+  +  '--traceall' option.
+  +  New completion scripts for:
+     git-clean, git-grep, git-ls-remote, git-submodule,
+     git-whatchanged
+  +  Updated completion scripts for:
+     git-cherry-pick, git-rebase (Git 1.8.1.4),
+     ssh, ssh-add, ssh-keygen (OpenSSH 6.2)
+  =  The condition for exiting the shell when the -e option is enabled
+     has been changed in accordance with the 2013 edition of
+     POSIX.1-2008.
+  =  The "++" and "--" operators are no longer supported in the
+     POSIXly-correct mode.
+  =  The $RANDOM variable now always returns random numbers, ignoring
+     the value from the environment variable, if any.
+  =  If yash encounters a too long line that cannot be handled while
+     reading a history file, it now tries to keep reading the rest of
+     the file rather than stopping reading.
+  =  Very long command lines are no longer saved in the history file.
+  *  Minor fix in a syntax error message.
+  *  Minor fix in completion script for "git", "ssh" and "rsync".
+
+----------------------------------------------------------------------
+Yash 2.34
+
+  +  New "test" built-in operator: =~, -o (unary)
+  +  New completion scripts for:
+     configure, git-name-rev, git-request-pull, make, rsync
+  =  A syntax error or expansion error in .yash_profile or .yashrc
+     no longer makes the shell exit even when the shell is not
+     interactive.
+  =  In line-editing, overwritten characters are now restored when you
+     hit the backspace key.
+  =  In line-editing, the undo history is no longer saved for each
+     backspace.
+  *  Fixes in completion scripts for "git".
+
+----------------------------------------------------------------------
+Yash 2.33
+
+  =  The "help" built-in now prints brief usage of built-ins.
+  =  Some error messages for command syntax error have been revised.
+  =  Some built-ins now check command syntax more strictly.
+  *  The "set" built-in aborts the shell on a command syntax error
+     as specified in POSIX.
+
+----------------------------------------------------------------------
+Yash 2.32
+
+  +  Man page and HTML manual in English and Japanese.
+  =  The "help" built-in now prints part of the man page.
+  *  Fixes in completion scripts for "git".
+
+----------------------------------------------------------------------
+Yash 2.31
+
+  +  Completion of directory stack indices in extended tilde
+     expansion.
+  +  New option for the "complete" built-in: --dirstack-index
+  +  Completion for "svn" version 1.7.
+  *  Fixes in "git", "tar" and "su" completion scripts.
+
+----------------------------------------------------------------------
+Yash 2.30
+
+  *  Fixed pathname completion for redirections.
+  +  New completion scripts for:
+     svn, git, gitg, gitk, and gitx.
+  *  Minor fixes in completion scripts.
+
+----------------------------------------------------------------------
+Yash 2.29
+
+  +  An alias value now can contain newlines.
+  *  Fixed invalid memory access on printing an empty array using the
+     "typeset" built-in.
+  *  The function body is now correctly executed in a subshell when
+     the body is defined using the (...) compound command.
+  *  In line-editing, the undo command can now be applied only to the
+     history entry that is being edited.
+
+----------------------------------------------------------------------
+Yash 2.28
+
+  =  In an interactive shell, mail check is now done before job status
+     report.
+  *  Fixed arithmetic expansion evaluating some expressions that
+     should not be evaluated.
+  *  Fixed the "array" built-in removing the wrong elements when
+     positive and negative indices are intermixed with the -d option.
+  *  Fixed the EXIT trap being wrongly executed after a command-not-
+     found error.
+  *  The EXIT trap is now executed with the correct redirection when
+     the last command had redirection.
+  *  The "exec" built-in now correctly exports arrays that are just
+     assigned.
+  *  ${#@} is now correctly expanded to an array of integers that
+     represent the lengths of array elements.
+  *  Fixed infinite loop in sequential brace expansion.
+  *  Fixed configuration file parsing in completion of the "ssh"
+     command.
+  *  The "-T" option of the "ln" and "mv" commands now can be
+     completed.
+  *  The EXIT trap now can be completed.
+
+----------------------------------------------------------------------
+Yash 2.27
+
+  *  Minor bug fixes.
+  +  New completion scripts for:
+     awk, chsh, gawk, nawk, pgawk, scp, sftp, ssh-add, ssh-agent,
+     ssh-keygen, su, sudo, sudoedit, and useradd.
+  *  Fix in completion scripts for the "set" and "tar" commands.
+
+----------------------------------------------------------------------
+Yash 2.26
+
+  +  New option for the "return" built-in: -n (--no-return)
+  =  Error messages have been revised.
+  =  Shell option names have been generalized: Option names are now
+     case-insensitive. Non-alphanumeric characters are ignored in
+     option names. Options can be inverted by prefixing "no" to
+     their names.
+  =  "case foo in (esac) bar; esac" is now rejected in the POSIXly
+     correct mode.
+  =  The "-o noexec" option is now ignored in an interactive shell.
+  =  New mail notification is now printed only when the mailbox file
+     is not empty.
+  =  "printf %c ''" now prints nothing as "printf %c" do.
+  =  In an invocation of the "complete" built-in with the -A or -R
+     option, the pattern is now matched against the last component of
+     the pathname when generating pathname candidates with the -f
+     option.
+  *  Function names containing an '=' sign can now be specified as
+     arguments to the typeset and unset built-ins (with the -f
+     option).
+  *  Fixed the exit status of iterative execution that was interrupted
+     by SIGINT.
+  +  New completion scripts for:
+     bsdtar, eview, evim, gex, gnutar, gtar, return, rgview, rgvim,
+     rview, rvim, slogin, ssh, tar, and which.
+  *  Many fixes in completion scripts for:
+     bash, chmod, dash, less, mksh, set, sh, and umask.
+
+----------------------------------------------------------------------
+Yash 2.25
+
+  =  In the completion candidate list, options are now sorted case-
+     insensitively.
+  =  While executing a completion function, the $IFS is reset to the
+     default value.
+  +  New completion scripts for:
+     bash, csplit, dash, diff, ed, egrep, env, ex, expand, fgrep,
+     file, find, fold, getconf, grep, gview, gvim, gvimdiff, head,
+     iconv, id, join, ksh, less, ln, locale, man, mesg, mkdir, mkfifo,
+     mksh, more, mv, newgrp, nice, nl, nohup, od, paste, patch,
+     pathchk, pr, ps, renice, rm, rmdir, sed, sh, sort, split, stty,
+     tail, tee, time, touch, tr, uname, uniq, vi, view, vim, vimdiff,
+     wc, who, xargs, and yash.
+  *  Many fixes in completion scripts for:
+     cat, cd, chgrp, chmod, chown, cmp, comm, cp, crontab, cut, date,
+     df, du, exec, ls, and set.
+
+----------------------------------------------------------------------
+Yash 2.24
+
+  +  New option for the "." built-in: -L
+  +  New options for the "command" built-in: -a, -f, -k
+  -  Removed the -B option for the "command" built-in.
+  =  Fixed configuration process so that the shell can handle all
+     kinds of signals on FreeBSD.
+  =  [line-editing] New command completion mechanism. The "complete"
+     built-in now has new syntax and semantics. Completion settings
+     are now autoloaded from $YASH_LOADPATH.
+  +  New completion scripts for:
+     basename, bg, cat, chgrp, chmod, chown, cmp, comm, command, cp,
+     crontab, cut, date, df, du, export, popd, pushd, readonly, type,
+     ".", and "[".
+  =  Revised completion scripts for:
+     alias, array, bindkey, break, cd, complete, continue, dirs,
+     disown, echo, eval, exec, exit, fc, fg, getopts, hash, help,
+     history, jobs, kill, ls, printf, pwd, read, set, suspend, test,
+     trap, typeset, ulimit, umask, unalias, unset, and wait.
+  -  Removed completion script for the "return" built-in.
+  =  Short options now come before long options in a completion
+     candidate list.
+  *  Symbolic links to non-existent files can now be completed.
+  *  Other fixes in command completion.
+  *  Fixed invalid memory access on parameter expansion failure in
+     redirection.
+
+----------------------------------------------------------------------
+Yash 2.23
+
+  *  Traps are no longer handled during completion to avoid messing up
+     the display.
+  *  Fixed invalid memory access during completion. When the notify
+     option is enabled, the shell was wrongly trying to notify the job
+     status while executing a candidate generator function.
+  *  The "-o verbose" option is now disabled during completion to
+     suppress the auto-loaded script being printed.
+  *  Fixed completion script for the "kill" built-in.
+
+----------------------------------------------------------------------
+Yash 2.22
+
+  +  New "test" built-in operators: -G, -O, -N
+  +  Completion settings are now autoloaded from $YASH_COMPPATH.
+  +  New completion scripts for:
+     alias, array, bindkey, break, cd, complete, continue, dirs,
+     disown, echo, eval, exec, exit, fc, fg, getopts, hash, help,
+     history, jobs, kill, ls, printf, pwd, read, return, set, suspend,
+     test, trap, typeset, ulimit, umask, unalias, unset, and wait.
+  *  Fix a bug that was causing a signal received by a just-created
+     subshell to be wrongly ignored.
+  *  Other bug fixes
+
+----------------------------------------------------------------------
+Yash 2.21
+
+  +  Command line completion
+  =  In an interactive shell, the value of $LINENO is now reset to 1
+     every time a command is input and executed.
+  *  The "function" keyword was not recognized by "command -v".
+  *  Fixed handling of SIGINT so that the interactive shell properly
+     gets back to normal after receiving SIGINT.
+  *  Input reading functions rewritten, including some bug fixes.
+
+----------------------------------------------------------------------
+Yash 2.20
+
+  +  Function definition using the "function" keyword.
+  =  The "-nt" and "-ot" operators of the "test" built-in now consider
+     a non-existent file older in favor of Korn shell.
+  =  [line-editing] some editing commands have been renamed:
+       vi-change-all -> vi-change-line
+       vi-yank-and-change-all -> vi-yank-all-change-line
+       vi-append-end -> vi-append-to-eol
+  *  [line-editing] the clear-and-redraw-all command was broken.
+
+----------------------------------------------------------------------
+Yash 2.19
+
+  +  The "ulimit" built-in is now available on FreeBSD.
+  +  In mail checking, the timestamp of the mail file is now compared
+     by the nanosecond if possible.
+  +  [line-editing] new line-editing commands:
+        oldest-history-bol, newest-history-bol, return-history-bol,
+        prev-history-bol, next-history-bol,
+        beginning-search-forward, beginning-search-backward
+  =  Faster filename pattern matching.
+  =  [line-editing] the "accept-line" command no longer accepts a
+     failing history search result.
+  =  [line-editing] the following commands have been changed not to
+     move the cursor to the beginning of the line:
+        oldest-history, newest-history, return-history,
+        prev-history, next-history
+     The new commands whose names end with "-bol" provide the
+     previous behaviors.
+  *  Fixed broken output of array assignment traces.
+  *  [line-editing] the "vi-edit-and-accept" command now handles the
+     count.
+  *  [line-editing] fixed the cursor position after the
+     search-again-forward/backward command in the emacs-like mode.
+
+----------------------------------------------------------------------
+Yash 2.18
+
+  +  New operators for string comparison in the "test" built-in:
+     ==, ===, !==, <, <=, >, >=
+  +  Operators "-nt" and "-ot" in the "test" built-in now compares the
+     modification time by the nanosecond if possible.
+  +  '--default-directory' option for the "cd" and "pushd" built-in.
+  +  '--remove-duplicates' option for the "pushd" built-in.
+  +  The right prompt and the styler prompt.
+  +  '--le-alwaysrp' option.
+  =  The interpretation of escape sequences to change the font in
+     $PS1 and $PS2 has been changed.
+  =  $PS3 no longer initialized.
+  =  Escape sequences are now interpreted in $PS4 as well as in $PS1
+     and $PS2.
+  =  The "echo" and "printf" built-ins now can print a null character.
+  *  [line-editing] $LINES and $COLUMNS were wrongly ignored.
+  *  [line-editing] fixed font color for some terminals.
+
+----------------------------------------------------------------------
+Yash 2.17
+
+  +  '--le-visiblebell' option.
+  +  New operators for version comparison in the "test" built-in:
+     -veq, -vne, -vgt, -vge, -vlt, -vle
+  +  [line-editing] "eof" command
+  =  The "typeset" built-in now prints only local variables when
+     invoked without the -g option or operands.
+  =  The "typeset" built-in now prints function definitions in a
+     pretty format.
+  =  When not in POSIXly-correct mode, commands in command substitu-
+     tion are now parsed when the command containing the substitution
+     is parsed.
+  *  Fixed the parse error on parameter expansion "${#}".
+  *  Fixed the "wait" built-in wrongly trying to wait for non-parent
+     processes when invoked in a subshell.
+  *  [line-editing] vi-replace-char command was broken.
+  *  Many other bug fixes
+
+----------------------------------------------------------------------
+Yash 2.16
+
+  +  '--curbg' and '--curstop' options.
+  =  '--curasync' option is now set by default.
+  =  Changed exit status of a while/until loop whose body is empty.
+  =  The "return" and "exit" built-ins now accepts an exit status of
+     256 or larger.
+  =  The "echo" built-in now interprets octal escapes only beginning
+     with a backslash followed by a zero.
+  *  Fixed a syntax error of a special built-in invoked thru the
+     "command" built-in causing the non-interactive shell to exit.
+  *  Fixed the exit status of the shell when the EXIT trap is set.
+  *  The '--allexport' option was wrongly ignored by the "read" and
+     "getopts" built-ins.
+  *  Fixed segfaults and other errors in the "getopts" built-in.
+  *  [line-editing] Fixed the vi-replace-char command causing invalid
+     memory access.
+  *  [line-editing] Fixed the emacs-just-one-space command not leaving
+     space(s).
+
+----------------------------------------------------------------------
+Yash 2.15
+
+  +  An interactive shell now can be interrupted by SIGINT.
+  +  Bracket expressions in pathname expansion are now fully supported
+     (provided that libc's regex implementation is correct).
+  =  The "suspend" built-in now requires the -f option to suspend an
+     interactive shell that is a session leader.
+  =  The shell no longer automatically sets the $YASH_LE_TIMEOUT
+     variable.
+  =  A job-control shell now stops itself when invoked in the
+     background.
+  =  A job-control shell no longer ignores SIGTTOU by default.
+  =  The '--nocaseglob' option no longer affects pattern matching in
+     parameter expansions of the form "${var#xxx}", "${var%xxx}", etc.
+  *  Fixed pathname expansion on redirection target.
+  *  Couldn't set a signal handler to the default by the "trap"
+     built-in if the signal was ignored on invocation of an inter-
+     active shell.
+  *  Fixed accidental interruption of built-ins by signals.
+  *  Fixed parser so that a non-simple command is properly parsed
+     after alias substitution.
+  *  Various bug fixes
+
+----------------------------------------------------------------------
+Yash 2.14
+
+  +  The -l option for the "bindkey" built-in.
+  +  Negative array indices are now allowed.
+  =  $PWD is now set to "/" (rather than "/..") after "cd /..".
+  =  The "command" built-in with the -vb option now ignores shell
+     keywords, aliases and functions.
+  =  Most of the built-ins now prints an error message and returns
+     non-zero when they cannot print something to the standard output.
+  =  The "pwd" and "times" built-ins now fail when an operand is
+     given.
+  =  The shell no longer exits when an assignment for a special
+     built-in failed if not in POSIXly-correct mode.
+  *  "cd //" was failing if the current directory is "/".
+  *  Invoking the "bindkey" built-in in the yashrc file was causing an
+     invalid memory access.
+  *  The "command" built-in with the -vb option was failing to find
+     regular built-ins that are not in $PATH.
+  *  The "dirs" command was going into an infinite loop if given an
+     argument.
+  *  The -c and -d options are wrongly rejected by the "ulimit"
+     built-in.
+  *  The "fg" built-in now refuses more than one operands in POSIXly-
+     correct mode, as described in the help.
+
+----------------------------------------------------------------------
+Yash 2.13
+
+  +  "history" built-in
+  +  The -i option for the "eval", "break" and "continue" built-ins.
+  +  The value of the $COMMAND_NOT_FOUND_HANDLER variable is now
+     executed when a command is not found.
+  -  '--autocd' option
+  =  The exit status is now one when the "return" built-in is used
+     outside a function in an interactive shell.
+  =  Revised command search and execution.
+  *  The shell would not exit after the "exit" built-in twice in a row
+     when you have $PROMPT_COMMAND set and you have stopped jobs.
+  *  The "notifyle" option not working with $PROMPT_COMMAND set.
+  *  [line-editing] Redoing was broken.
+  *  [line-editing] The command line was not redrawn after trap
+     handling.
+  *  [line-editing] Fixed some bugs in the vi-edit-and-accept command.
+
+----------------------------------------------------------------------
+Yash 2.12
+
+  +  Emacs-like line-editing.
+  +  "bindkey" built-in.
+  +  The $PROMPT_COMMAND variable now can be an array.
+  +  The value of the $YASH_AFTER_CD variable is now executed after
+     the working directory was changed.
+  =  The "fg" and "bg" built-in now always sends SIGCONT to the
+     continued job.
+  =  The "exit" built-in now warns about stopped jobs even when
+     executed after the "fg", "bg", "disown" or "wait" built-in.
+  *  In vi-like line-editing, the wrong text was put after 30th yank.
+  *  In vi-like line-editing, the "s" command cannot be used if the
+     cursor is at the beginning of line
+
+----------------------------------------------------------------------
+Yash 2.11
+
+  +  Added the "--histspace" and "--le-noconvmeta" options.
+  +  Support for the $HISTRMDUP variable.
+  +  Support for the $YASH_LE_TIMEOUT variable.
+  +  The "kill" built-in with the "-l" option now accepts signal names
+     as operands.
+  =  The "--le-convmeta" option now is a Boolean option.
+  =  The "$-" special parameter now includes the "l" flag if the
+     shell is a login shell.
+  *  An empty case command "case i in (*) esac" now always returns the
+     exit status of zero.
+  *  Quoted words were incorrectly expanded with backslashes when the
+     "-f" option is set.
+  *  Fixed invalid memory access in the "v" command of vi-like
+     line-editing.
+
+----------------------------------------------------------------------
+Yash 2.10
+
+  +  History search in line-editing.
+  =  Empty lines are no longer stored in the history.
+  =  In the vi-like line-editing, "cw" and "cW" now work as in vi.
+  *  Setting the "notifyle" option caused a segfault if yash was
+     configured with line-editing disabled.
+  *  In line-editing, undoing a change to a history entry did not
+     restore the cursor position properly.
+  *  Some fixes for invalid memory access during line-editing.
+
+----------------------------------------------------------------------
+Yash 2.9
+
+  +  Line-editing in the interactive mode.
+  x  Line-editing is not fully implemented.
+  +  Multiple instances of shell that use the same file for the
+     history file now share the history.
+  -  The "history" built-in has been removed.
+  =  Now non-ASCII alphabets are allowed in variable names.
+  =  Now nested parameter expansions must be enclosed by braces.
+  =  The "help" built-in now prints an error message if the specified
+     built-in is not found.
+  *  Fixed floating-point arithmetics in arithmetic expansions.
+  *  Fixed parser for arithmetic expansions that was incorrectly
+     rejecting identifiers that start with underscores.
+  *  Fixed parser that had trouble parsing parameter expansions
+     containing the hash sign like "${#=x}".
+  *  Fixed the help message for the "pwd" built-in.
+
+----------------------------------------------------------------------
+Yash 2.8
+
+  +  Brace expansion with delta: {a..b..c}
+  +  The "command" built-in's -b and -B options now can be used with
+     the -v and -V options.
+  =  Yash now conforms to POSIX.1-2008.
+    .  The "read" built-in now always removes trailing white-spaces
+       from the input.
+    .  The results of tilde expansion are no longer subject to field
+       splitting and pathname expansion.
+    .  The "pwd" built-in with the -P option no longer sets the $PWD
+       variable.
+    .  "cd -L foo/.." is no more the same as "cd -L ." in that it is
+       an error when the directory "foo" does not exist.
+    .  The "command" built-in's -p option now can be used with the -v
+       and -V options.
+    .  In POSIXly-correct mode, all asynchronous commands now ignore
+       SIGINT and SIGQUIT (even when job control is active).
+  *  When executing commands edited by the "fc" built-in, the $?
+     variable was incorrectly assigned the exit status of the editor
+     invoked by "fc".
+  *  Backslashes, commas and braces in $IFS were incorrectly ignored
+     in field splitting.
+  *  Pathname expansion failed if we do not have the read permission
+     for the specified directory even when we only need the search
+     permission.
+  *  The signal mask of commands invoked by the shell now inherits
+     that of the shell (except for trapped signals).
+  *  The "command" built-in now properly handles directories given as
+     the commands when the "autocd" option is on.
+
+----------------------------------------------------------------------
+Yash 2.7
+
+  +  Parameter expansion ${array[index]:=value} now allows assignment
+     to an empty array element.
+  +  Here-string by the "<<<" operator.
+  +  New redirection operator ">>|" opens a pipe.
+  -  Loop pipes no longer supported.
+  =  The $IFS variable is always initialized to the default value when
+     the shell is invoked.
+  *  The "echo" and "printf" built-ins now print an error message on
+     failure.
+  *  A quoted period at the beginning of a filename was not properly
+     matching during filename expansion.
+
+----------------------------------------------------------------------
+Yash 2.6
+
+  +  Added the -q option to the fc built-in.
+  +  Compound commands may now contain no commands inside.
+  *  "alias -p" now prints commands with proper escape.
+  *  In POSIXly-correct mode, a semicolon followed by the identifier
+     followed by "for" is now treated as an error.
+  *  Global aliases are now allowed after compound commands.
+  *  The "fg" and "wait" built-ins were causing invalid memory access
+     when the "-o notify" option is enabled.
+
+----------------------------------------------------------------------
+Yash 2.5
+
+  =  Redirection of FDs used by the shell is now error.
+  *  Some redirection syntax errors were overlooked.
+  *  Fixed the "sig.y" test failure.
+  *  When an "exec" command with redirections is enclosed in a brace
+     with redirections, the redirections to the brace are now properly
+     closed after execution.
+  *  Fixed parsing error of a comment after the identifier of a for
+     statement.
+
+----------------------------------------------------------------------
+Yash 2.4
+
+  =  The long option for the -p option of the "jobs" built-in has been
+     changed from "--pid-only" to "--pgid-only".
+  *  Trap of SIGCHLD, SIGINT, SIGTERM, SIGQUIT, SIGTSTP, SIGTTOU were
+     wrongly set to "ignore" in some condition.
+  *  Signal handlers for SIGINT, SIGTERM, SIGQUIT, SIGTSTP, SIGTTOU
+     were mistakenly reset in some moments.
+  *  Fixed the exit status of the "wait" built-in returned when
+     interrupted by a signal.
+  *  Fixed file access permission test
+  *  "command -V xxx/yyy" now prints an error message if "xxx/yyy" is
+     not a valid command.
+
+----------------------------------------------------------------------
+Yash 2.3
+
+  =  Now changing LC_CTYPE immediately takes effect if the shell is
+     interactive and not in the POSIXly-correct mode.
+  *  Fixed parameter expansion: empty words are now expanded properly.
+  *  Fixed a race condition, which was causing some signals ignored.
+  *  Assignments using the typeset/readonly/export built-ins failed to
+     update the shell's internal data. This caused the shell to keep
+     using the old PATH after the PATH has been changed.
+
+----------------------------------------------------------------------
+Yash 2.2
+
+  +  "help", "pushd", "popd" and "dirs" built-ins
+  =  The value of $PWD set by the "cd" built-in is fixed. It now has a
+     correct value when changing to a relative path from the root
+     directory.
+  *  Pathname expansion not properly performed for patterns including
+     "." or "..".
+
+----------------------------------------------------------------------
+Yash 2.1
+
+  +  Array variables
+  +  "array", "echo", "printf" and "test" built-ins
+  +  The -A option for the "read" built-in
+  *  The colon flag in a parameter expansion like "${FOO:-bar}" was
+     ignored if the value of the parameter begins with a certain
+     character.
+  *  The readonly attribute was ignored when an assignment occurs
+     against a command invocation
+  *  Passing "=" as a name to the "unset" built-in incorrectly unset
+     the positional parameters and caused a potential invalid memory
+     access.
+  *  Field splitting on variable values that consist only of spaces
+     produced wrong results.
+  *  Test of file access permission now uses the effective user/group
+     IDs rather than the real user/group IDs.
+
+----------------------------------------------------------------------
+Yash 2.0
+
+  +  "history" built-in
+  +  Command redirection
+  *  A POSIXly-correct non-interactive shell exits when a particular
+     error occurred on a special built-in according to POSIX.
+  *  Alias substitution routines were improved.
+  *  Other bug fixes
+
+----------------------------------------------------------------------
+Yash 2.0 beta2
+
+  +  Command history
+  +  "type", "hash" and "fc" built-ins
+  =  If the "command" built-in with the -V option fails to find a
+     command, an message is printed.
+  *  Invocation of an external command with an assignment to the $PATH
+     variable caused an invalid memory access.
+  *  Single quote not parsed properly in some circumstances.
+  *  Other bug fixes
+
+----------------------------------------------------------------------
+Yash 2.0 beta1
+
+  +  "read", "getopts" and "command" built-ins
+  +  '--autocd' and '--curasync' option
+  +  Mail check feature
+  +  The prompt command
+  =  The "readonly" and "export" built-ins now affects global
+     variables by default.
+  *  The standard input is no longer buffered
+  *  The "typeset" built-in now allows any characters other than '='
+     for variable names.
+  *  The special parameter $? reflects the exit status of a command
+     substitution in a variable assignment.
+  *  Many other bug fixes
+
+----------------------------------------------------------------------
+Yash 2.0 beta0
+
+  +  "eval", "exec", ".", "times", "umask", "typeset", "export",
+     "readonly", "unset", "shift" and "trap" built-ins
+  +  "wait" built-in now can be interrupted
+  +  Arithmetic expansions
+  +  Interactive shell now notifies the process killed by a signal
+  -  "/etc/profile" and "~/.profile" are no longer sourced on start-up
+  *  Fixed token delimitation in alias substitution
+  *  Fixed token delimitation on assignments without values
+  *  Many other bug fixes
+
+----------------------------------------------------------------------
+Yash 2.0 alpha2
+
+  +  Initialization files such as "/etc/profile" and "~/.yashrc" are
+     now sourced on start-up.
+  +  '--noprofile', '--norcfile' and '--rcfile' options
+  +  "pwd", "set", "exit", "return", "break", "continue", "jobs",
+     "fg", "bg", "wait", "disown", "alias" and "unalias" built-ins
+  *  '--nocaseglob' was misinterpreted as '-c'.
+  *  It was not fully case-insensitive when '--nocaseglob' is on.
+  *  If job control is off, an interactive shell no longer prints
+     changed status of jobs before prompt.
+  =  Error handling for unset parameters was improved.
+  =  The help message for 'yash --help' is now much briefer.
+
+----------------------------------------------------------------------
+Yash 2.0 alpha1
+
+  +  New options implemented: -x, -h, -a
+  =  The default value of 'PS3' is not set in POSIXly-correct mode.
+  +  'configure' accepts new '--no-undefined' option
+  +  ":", "true", "false", "cd" built-ins
+  *  Command hashtable is now cleared when PATH is assigned.
+  *  Assertion failure when a null character is input
+  *  Many other bug fixes
+
+----------------------------------------------------------------------
+Yash 2.0 alpha0 (the first release of version 2.x)
+
+  x  Arithmetic expansion is not implemented
+  x  Built-ins are not implemented at all

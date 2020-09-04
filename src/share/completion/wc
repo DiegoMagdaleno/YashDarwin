@@ -1,0 +1,59 @@
+# (C) 2010 magicant
+
+# Completion script for the "wc" command.
+# Supports POSIX 2008, GNU coreutils 8.6, FreeBSD 8.1, OpenBSD 4.8, NetBSD 5.0,
+# Mac OS X 10.6.4, SunOS 5.10, HP-UX 11i v3.
+
+function completion/wc {
+
+	case $("${WORDS[1]}" --version 2>/dev/null) in
+		(*'coreutils'*) typeset type=GNU ;;
+		(*)             typeset type="$(uname 2>/dev/null)" ;;
+	esac
+	case $type in
+		(GNU) typeset long=true ;;
+		(*)   typeset long= ;;
+	esac
+
+	typeset OPTIONS ARGOPT PREFIX
+	OPTIONS=( #>#
+	"c ${long:+--bytes}; print byte counts"
+	"l ${long:+--lines}; print line counts"
+	"m ${long:+--chars}; print character counts"
+	"w ${long:+--words}; print word counts"
+	) #<#
+
+	case $type in
+	(GNU|FreeBSD|NetBSD)
+		OPTIONS=("$OPTIONS" #>#
+		"L ${long:+--max-line-length}; print longest line lengths"
+		) #<#
+		case $type in (GNU)
+			OPTIONS=("$OPTIONS" #>#
+			"--files0-from:; specify a file containing null-separated file names to count size"
+			"--help"
+			"--version"
+			) #<#
+		esac
+		;;
+	(OpenBSD)
+		OPTIONS=("$OPTIONS" #>#
+		"h; print size using K, M, etc. for 1024^n"
+		) #<#
+		;;
+	esac
+
+	command -f completion//parseoptions ${long:+-es}
+	case $ARGOPT in
+	(-)
+		command -f completion//completeoptions
+		;;
+	(*)
+		complete -P "$PREFIX" -f
+		;;
+	esac
+
+}
+
+
+# vim: set ft=sh ts=8 sts=8 sw=8 noet:

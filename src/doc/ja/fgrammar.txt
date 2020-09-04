@@ -1,0 +1,280 @@
+= 構文の形式的定義
+:encoding: UTF-8
+:lang: ja
+//:title: Yash マニュアル - 構文の形式的定義
+:description: Yash のコマンドの構文規則の形式的な定義
+
+ここにプログラミング言語としてのシェルの構文定義を示します。
+
+[NOTE]
+以下に示す構文の一部は link:posix.html[POSIX 準拠モード]では使用できません。
+
+[[token]]
+== トークン分割
+
+入力ソースコードの文字列はまずトークンに分割されます。トークンはソースコード内のより先に現れるトークンができるだけ長くなるように分割します。一つ以上の空白 (blank) 文字の連なりはトークンを分割します。
+
+Yash に存在する演算子トークンは以下の通りです:
+
+`&` `&&` `(` `)` `;` `;;` `|` `||`
+`<` `<<` `<&` `<(` `<<-` `<<<` `<>`
+`>` `>>` `>&` `>(` `>>|` `>|` (改行)
+
+[NOTE]
+他の一般的なプログラミング言語とは異なり、改行演算子は空白ではなくトークンとして扱われます。
+
+空白ではなく演算子トークンの一部でもない文字は単語 (word) トークンとなります。単語は以下の解析表現文法によって解析されます。
+
+[[d-word]]Word::
+(<<d-word-element,WordElement>> / !<<d-special-char,SpecialChar>> .)+
+
+[[d-word-element]]WordElement::
++\+ . / +
+`'` (!`'` .)* `'` / +
++"+ <<d-quote-element,QuoteElement>>* +"+ / +
+<<d-parameter,Parameter>> / +
+<<d-arithmetic,Arithmetic>> / +
+<<d-command-substitution,CommandSubstitution>>
+
+[[d-quote-element]]QuoteElement::
++\+ ([+$&#96;"&#92;+] / <改行>) / +
+<<d-parameter,Parameter>> / +
+<<d-arithmetic,Arithmetic>> / +
+<<d-command-substitution-quoted,CommandSubstitutionQuoted>> / +
+![+&#96;"&#92;+] .
+
+[[d-parameter]]Parameter::
++$+ [+@*#?-$!+ [:digit:]] / +
++$+ <<d-portable-name,PortableName>> / +
++$+ <<d-parameter-body,ParameterBody>>
+
+[[d-portable-name]]PortableName::
+![++0++-++9++] [++0++-++9++ ++ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_++]+
+
+[[d-parameter-body]]ParameterBody::
++{+ <<d-parameter-number,ParameterNumber>>?
+(<<d-parameter-name,ParameterName>> / ParameterBody / +$+ ParameterBody /
+<<d-arithmetic,Arithmetic>> / <<d-command-substitution,CommandSubstitution>>)
+<<d-parameter-index,ParameterIndex>>? <<d-parameter-match,ParameterMatch>>?
++}+
+
+[[d-parameter-number]]ParameterNumber::
+`#` ![`}+=:/%`] !([`-?#`] !`}`)
+
+[[d-parameter-name]]ParameterName::
+[+@*#?-$!+] / +
+[[:alnum:] +_+]+
+
+[[d-parameter-index]]ParameterIndex::
++[+ <<d-parameter-index-word,ParameterIndexWord>> (+,+ ParameterIndexWord)?
++]+
+
+[[d-parameter-index-word]]ParameterIndexWord::
+(<<d-word-element,WordElement>> / ![+"'],+] .)+
+
+[[d-parameter-match]]ParameterMatch::
+`:`? [`-+=?`] <<d-parameter-match-word,ParameterMatchWord>> / +
+(`#` / `##` / `%` / `%%`) ParameterMatchWord / +
+(`:/` / `/` [`#%/`]?)
+<<d-parameter-match-word-no-slash,ParameterMatchWordNoSlash>>
+(+/+ ParameterMatchWord)?
+
+[[d-parameter-match-word]]ParameterMatchWord::
+(<<d-word-element,WordElement>> / ![+"'}+] .)*
+
+[[d-parameter-match-word-no-slash]]ParameterMatchWordNoSlash::
+(<<d-word-element,WordElement>> / ![+"'/}+] .)*
+
+[[d-arithmetic]]Arithmetic::
+`$((` <<d-arithmetic-body,ArithmeticBody>>* `))`
+
+[[d-arithmetic-body]]ArithmeticBody::
++\+ . / +
+<<d-parameter,Parameter>> / +
+<<d-arithmetic,Arithmetic>> / +
+<<d-command-substitution,CommandSubstitution>> / +
++(+ ArithmeticBody +)+ / +
+![+`()+] .
+
+[[d-command-substitution]]CommandSubstitution::
++$(+ <<d-complete-program,CompleteProgram>> +)+ / +
++&#96;+ <<d-command-substitution-body,CommandSubstitutionBody>>* +&#96;+
+
+[[d-command-substitution-quoted]]CommandSubstitutionQuoted::
++$(+ <<d-complete-program,CompleteProgram>> +)+ / +
++&#96;+ <<d-command-substitution-body-quoted,CommandSubstitutionBodyQuoted>>*
++&#96;+
+
+[[d-command-substitution-body]]CommandSubstitutionBody::
++\+ [+$&#96;\+] / +
+!++&#96;++ .
+
+[[d-command-substitution-body-quoted]]CommandSubstitutionBodyQuoted::
++\+ [+$&#96;\`+] / +
+!++&#96;++ .
+
+[[d-special-char]]SpecialChar::
+[+|&amp;;&lt;&gt;()&#96;&#92;"'+ [:blank:]] / <改行>
+
+この文法における終端記号の集合は、yash を実行する環境が扱える任意の文字の集合 (実行文字集合) です (ただしナル文字 `'\0'` を除く)。
+
+厳密には、上記の文法定義は完全な解析表現文法ではありません。<<d-command-substitution,CommandSubstitution>> (<<d-command-substitution-quoted,Quoted>>) のルールが構文定義の非終端記号である <<d-complete-program,CompleteProgram>> に依存しているためです。
+
+[[classification]]
+=== トークン分類
+
+単語トークンが生成された後、単語はさらに IO_NUMBER トークン・予約語・名前・代入・通常の単語のどれかに分類されます。通常の単語以外の分類は、その単語が現れる文脈においてその分類のトークンが現れ得る場合のみ採用されます。予約語の一覧と予約語が認識される文脈の要件は、{zwsp}link:syntax.html#tokens[トークンの解析と予約語]を参照してください。
+
+トークンが数字のみから構成されていて直後に +<+ または +>+ が続くとき、それは IO_NUMBER トークンとなります。
+
+代入 (assignment) トークンは名前 (name) とそれに続く +=+ で始まるトークンです:
+
+[[d-assignment-word]]AssignmentWord::
+<<d-assignment-prefix,AssignmentPrefix>> <<d-word,Word>>
+
+[[d-assignment-prefix]]AssignmentPrefix::
+<<d-name,Name>> +=+
+
+[[d-name]]Name::
+!\[[:digit:]] \[[:alnum:] +_+]+
+
+[[comments]]
+=== コメント
+
+コメントは `#` で始まり、次の改行文字の直前まで続きます。コメントは空白と同様に扱われ、トークンの一部にはなりません。コメントを開始する `#` は、トークンの始まりの位置にあるときのみ有効です。それ以外の位置にある `#` は単に単語トークンの一部と見做されます。
+
+[[d-comment]]Comment::
+`#` (!<改行> .)*
+
+[[syntax]]
+== 構文
+
+トークンが分割された後、その結果であるトークンの並びは以下に示す文脈自由文法によって解析されます。(以下、`*` と `+` と `?` は正規表現と同様の意味を持ちます)
+
+[[d-complete-program]]CompleteProgram::
+<<d-nl,NL>>* | <<d-compound-list,CompoundList>>
+
+[[d-compound-list]]CompoundList::
+<<d-nl,NL>>* <<d-and-or-list,AndOrList>>
+({zwsp}(+;+ | +&+ | NL) <<d-complete-program,CompleteProgram>>)?
+
+[[d-and-or-list]]AndOrList::
+<<d-pipeline,Pipeline>> &#40;(+&&+ | +||+) <<d-nl,NL>>* Pipeline)*
+
+[[d-pipeline]]Pipeline::
++!+? <<d-command,Command>> (+|+ <<d-nl,NL>>* Command)*
+
+[[d-command]]Command::
+<<d-compound-command,CompoundCommand>> <<d-redirection,Redirection>>* | +
+<<d-function-definition,FunctionDefinition>> | +
+<<d-simple-command,SimpleCommand>>
+
+[[d-compound-command]]CompoundCommand::
+<<d-subshell,Subshell>> | +
+<<d-grouping,Grouping>> | +
+<<d-if-command,IfCommand>> | +
+<<d-for-command,ForCommand>> | +
+<<d-while-command,WhileCommand>> | +
+<<d-case-command,CaseCommand>> | +
+<<d-double-bracket-command,DoubleBracketCommand>> | +
+<<d-function-command,FunctionCommand>>
+
+[[d-subshell]]Subshell::
++(+ <<d-compound-list,CompoundList>> +)+
+
+[[d-grouping]]Grouping::
++{+ <<d-compound-list,CompoundList>> +}+
+
+[[d-if-command]]IfCommand::
++if+ <<d-compound-list,CompoundList>> +then+ CompoundList
+(+elif+ CompoundList +then+ CompoundList)*
+(+else+ CompoundList)? +fi+
+
+[[d-for-command]]ForCommand::
++for+ <<d-name,Name>>
+({zwsp}(<<d-nl,NL>>* +in+ <<d-word,Word>>*)? (+;+ | NL) NL*)?
++do+ <<d-compound-list,CompoundList>> +done+
+
+[[d-while-command]]WhileCommand::
+(+while+ | +until+) <<d-compound-list,CompoundList>> +do+ CompoundList +done+
+
+[[d-case-command]]CaseCommand::
++case+ <<d-word,Word>> <<d-nl,NL>>* +in+ NL* <<d-case-list,CaseList>>? +esac+
+
+[[d-case-list]]CaseList::
+<<d-case-item,CaseItem>> (+;;+ <<d-nl,NL>>* CaseList)?
+
+[[d-case-item]]CaseItem::
++(+? <<d-word,Word>> (+|+ Word)* +)+ <<d-complete-program,CompleteProgram>>
+
+[[d-double-bracket-command]]DoubleBracketCommand::
++[[+ <<d-ors,Ors>> +]]+
+
+[[d-ors]]Ors::
+<<d-ands,Ands>> (+||+ Ands)*
+
+[[d-ands]]Ands::
+<<d-nots,Nots>> (+&&+ Nots)*
+
+[[d-nots]]Nots::
+++!++* <<d-primary,Primary>>
+
+[[d-primary]]Primary::
+(+-b+ | +-c+ | +-d+ | +-e+ | +-f+ | +-G+ | +-g+ | +-h+ | +-k+ | +-L+ | +-N+ |
++-n+ | +-O+ | +-o+ | +-p+ | +-r+ | +-S+ | +-s+ | +-t+ | +-u+ | +-w+ | +-x+ |
++-z+) <<d-word,Word>> | +
+Word (+-ef+ | +-eq+ | +-ge+ | +-gt+ | +-le+ | +-lt+ | +-ne+ | +-nt+ | +-ot+ |
++-veq+ | +-vge+ | +-vgt+ | +-vle+ | +-vlt+ | +-vne+ | +=+ | +==+ | +===+ |
++=~+ | +!=+ | +!==+ | +<+ | +>+) Word | +
++(+ <<d-ors,Ors>> +)+ | +
+Word
+
+[[d-function-command]]FunctionCommand::
++function+ <<d-word,Word>> (+(+ +)+)? <<d-nl,NL>>*
+<<d-compound-command,CompoundCommand>> <<d-redirection,Redirection>>*
+
+[[d-function-definition]]FunctionDefinition::
+<<d-name,Name>> +(+ +)+ <<d-nl,NL>>*
+<<d-compound-command,CompoundCommand>> <<d-redirection,Redirection>>*
+
+[[d-simple-command]]SimpleCommand::
+(<<d-assignment,Assignment>> | <<d-redirection,Redirection>>) SimpleCommand?
+| +
+<<d-word,Word>> (Word | <<d-redirection,Redirection>>)*
+
+[[d-assignment]]Assignment::
+<<d-assignment-word,AssignmentWord>> | +
+<<d-assignment-prefix,AssignmentPrefix>>++(++
+<<d-nl,NL>>* (<<d-word,Word>> NL*)* +)+
+
+[[d-redirection]]Redirection::
+IO_NUMBER? <<d-redirection-operator,RedirectionOperator>> <<d-word,Word>> | +
+IO_NUMBER? +<(+ <<d-complete-program,CompleteProgram>> +)+ | +
+IO_NUMBER? +>(+ CompleteProgram +)+
+
+[[d-redirection-operator]]RedirectionOperator::
+`<` | `<>` | `>` | `>|` | `>>` | `>>|` | `<&` | `>&` | `<<` | `<<-` | `<<<`
+
+[[d-nl]]NL::
+<改行>
+
+ルール <<d-primary,Primary>> では、<<d-word,Word>> トークンは +]]+ に一致してはなりません。また、Primary が Word トークンで始まる場合にはその Word は同ルールで認められている単項演算子に一致してはなりません。
+
+ルール <<d-simple-command,SimpleCommand>> では、<<d-word,Word>> トークンはそれが <<d-assignment,Assignment>> の始まりとは解釈できない場合にのみ採用されます。
+
+ルール <<d-assignment,Assignment>> では、<<d-assignment-prefix,AssignmentPrefix>> と ++(++ の間に空白を置くことはできません。
+
+上記の文法定義には{zwsp}link:redir.html#here[ヒアドキュメント]の内容とその終わりを表す行の解析のための規則は含まれていません。それらは対応するリダイレクト演算子の後にある最初の改行 (<<d-nl,NL>>) トークンが解析された直後に解析されます。
+
+[[alias]]
+=== エイリアス置換
+
+単語は{zwsp}link:syntax.html#aliases[エイリアス置換]の対象となります。
+
+- 単語が <<d-simple-command,SimpleCommand>> の <<d-word,Word>> として解析されようとした時に、通常のエイリアス及びグローバルエイリアスを対象として置換が試みられます。
+- 置換結果が空白文字 (blank) で終わるエイリアス置換の次に単語トークンがある場合、その単語も通常のエイリアス及びグローバルエイリアスを対象として置換が試みられます。
+- その他の単語は、グローバルエイリアスのみを対象として置換が試みられます。(link:posix.html[POSIX 準拠モード]を除く)
+
+予約語に分類されたトークンはエイリアス置換の対象からは除外されます。
+
+// vim: set filetype=asciidoc expandtab:
